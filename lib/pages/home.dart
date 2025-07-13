@@ -1,4 +1,14 @@
 import 'package:flutter/material.dart';
+import 'score.dart';
+
+void resetScores() {
+  animalScore = 0;
+  larkScore = 0;
+  clockScore = 0;
+  totalScore = 0;
+  attentionScore = 0;
+  reorderScore = 0;
+}
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -38,6 +48,7 @@ class HomePage extends StatelessWidget {
                 elevation: 5, // Shadow
               ),
               onPressed: () {
+                resetScores();
                 Navigator.pushNamed(context, '/larksen');
               },
               child: const Text(

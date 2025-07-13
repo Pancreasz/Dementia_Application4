@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'score.dart';
 
-int totalScore =
-    larkScore + clockScore + animalScore + attentionScore + reorderScore;
-
 class EndPage extends StatelessWidget {
   const EndPage({super.key});
 
+
   @override
   Widget build(BuildContext context) {
+    final int totalScore = larkScore + clockScore + animalScore + attentionScore + reorderScore;
     return Scaffold(
       appBar: AppBar(
         title: const Text(
