@@ -462,7 +462,7 @@ class _GameScreenState extends State<GameScreen> {
               ),
               onPressed: isChecking ? null : _checkSolution,
               child: const Text(
-                'ตรวจสอบคำตอบ',
+                'ส่งคำตอบ',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),

@@ -65,7 +65,7 @@ class _ReorderImagesPageState extends State<ReorderImagesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Center(child: Text('เรียงลำดับรูปภาพ')),
+        title: Center(child: Text('เรียงลำดับรูปภาพ ให้เหมือนกับที่ได้เรียงไว้ก่อนหน้านี้')),
         centerTitle: true,
         automaticallyImplyLeading: false,
       ),

@@ -15,172 +15,100 @@ class EndPage extends StatelessWidget {
           "ผลการทดสอบ",
           style: TextStyle(
             fontSize: 45,
-            fontWeight: FontWeight.bold,  // Bold text here
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
         ),
         centerTitle: true,
         automaticallyImplyLeading: false,
+        backgroundColor: Colors.blue,
+        elevation: 10,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(20),
+          ),
+        ),
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(10),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.blue.shade50,
+              Colors.blue.shade100,
+            ],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Result Card
+                  _buildResultCard(
+                    title: "ผลการทดสอบเบื้องต้น",
+                    content: "คุณเป็น: ${_getResultCategory(totalScore)}",
+                    contentColor: _getResultColor(totalScore),
+                    icon: _getResultIcon(totalScore),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        "ผลการทดสอบเบื้องต้น",
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue[800],
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        "คุณเป็น: ${_getResultCategory(totalScore)}",
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: _getResultColor(totalScore),
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // Criteria Card
+                  _buildInfoCard(
+                    title: "เกณฑ์การประเมิน:",
+                    items: [
+                      "13-15: ปกติ",
+                      "9-13: บกพร่องเล็กน้อย",
+                      "5-9: มีความบกพร่อง",
+                      "0-5: เสี่ยงเป็นโรคประสาทเสื่อมสูง - ควรเข้าพบปรึกษาแพทย์",
                     ],
                   ),
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        "Criteria:",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue[800],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "13-15: ปกติ",
-                        style: TextStyle(fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        "10-12: มีความบกพร่องเล็กน้อย",
-                        style: TextStyle(fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        "Below 10: เสี่ยงเป็นโรคประสามเสื่อมสูง - ควรเข้าพบปรึกษาแพทย์",
-                        style: TextStyle(fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // Scores Card
+                  _buildScoresCard(
+                    title: "คะแนนการทดสอบของคุณ:",
+                    items: [
+                      "แบบทดสอบลากเส้น: $larkScore/1",
+                      "แบบทดสอบนาฬิกา: $clockScore/3",
+                      "แบบทดสอบทายชื่อสัตว์: $animalScore/3",
+                      "แบบทดสอบลบเลข: $attentionScore/3",
+                      "แบบทดสอบความจำ: $reorderScore/5",
                     ],
+                    totalScore: "คะแนนรวมทั้งหมด: $totalScore/15",
                   ),
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        "Your test score:",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue[800],
-                        ),
+                  
+                  const SizedBox(height: 30),
+                  
+                  // Restart Button
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "แบบทดสอบลากเส้น: $larkScore/1",
-                        style: TextStyle(fontSize: 16),
-                        textAlign: TextAlign.center,
+                      elevation: 5,
+                      shadowColor: Colors.blue.withOpacity(0.5),
+                      textStyle: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
-                      Text(
-                        "แบบทดสอบนาฬิกา: $clockScore/3",
-                        style: TextStyle(fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        "แบบทดสอบทายชื่อสัตว์: $animalScore/3",
-                        style: TextStyle(fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        "แบบทดสอบลบเลข: $attentionScore/3",
-                        style: TextStyle(fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
-                      Text(
-                        "แบบทดสอบความจำ: $reorderScore/5",
-                        style: TextStyle(fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      const Divider(),
-                      const SizedBox(height: 8),
-                      Text(
-                        "คะแนนรวมทั้งหมด: $totalScore/15",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 30),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
                     ),
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/homepage');
+                    },
+                    child: const Text("ทำแบบทดสอบอีกครั้ง"),
                   ),
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/homepage');
-                  },
-                  child: const Text(
-                    "ทำแบบทดสอบอีกครั้ง",
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -188,15 +116,168 @@ class EndPage extends StatelessWidget {
     );
   }
 
+  // Helper widget for result card
+  Widget _buildResultCard({required String title, required String content, required Color contentColor, required IconData icon}) {
+    return Card(
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.blue.withOpacity(0.1),
+              blurRadius: 10,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 30, color: contentColor),
+                const SizedBox(width: 10),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            Text(
+              content,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: contentColor,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper widget for info cards
+  Widget _buildInfoCard({required String title, required List<String> items}) {
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Column(
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...items.map((item) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                item,
+                style: const TextStyle(fontSize: 17),
+                textAlign: TextAlign.center,
+              ),
+            )).toList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper widget for scores card
+  Widget _buildScoresCard({required String title, required List<String> items, required String totalScore}) {
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Column(
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...items.map((item) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Text(
+                item,
+                style: const TextStyle(fontSize: 17),
+                textAlign: TextAlign.center,
+              ),
+            )).toList(),
+            const SizedBox(height: 12),
+            const Divider(thickness: 1, color: Colors.grey),
+            const SizedBox(height: 12),
+            Text(
+              totalScore,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   String _getResultCategory(int score) {
     if (score >= 13) return "ปกติ";
-    if (score >= 10) return "มีความบกพร่องเล็กน้อย";
-    return "เสี่ยงเป็นโรคประสามเสื่อมสูง";
+    if (score >= 9) return "บกพร่องเล็กน้อย";
+    if (score >= 5) return "มีความบกพร่อง";
+    return "เสี่ยงเป็นโรคประสาทเสื่อมสูง";
   }
 
   Color _getResultColor(int score) {
-    if (score >= 13) return Colors.green;
-    if (score >= 10) return Colors.orange;
-    return Colors.red;
+    if (score >= 13) return Colors.green.shade700;
+    if (score >= 9) return Colors.orange.shade700;
+    if (score >= 5) return Colors.orange.shade800;
+    return Colors.red.shade700;
+  }
+
+  IconData _getResultIcon(int score) {
+    if (score >= 13) return Icons.check_circle;
+    if (score >= 9) return Icons.info;
+    if (score >= 5) return Icons.warning;
+    return Icons.error;
   }
 }
