@@ -79,7 +79,7 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(""),
+        title: const Text("Help"),
         centerTitle: true,
         automaticallyImplyLeading: false,
         actions: [
