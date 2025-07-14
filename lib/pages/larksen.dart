@@ -360,8 +360,10 @@ class _GameScreenState extends State<GameScreen> {
               const SizedBox(height: 12),
               _buildInstructionRow('2. ห้ามลากเส้นทับกัน'),
               const SizedBox(height: 12),
+              _buildInstructionRow('3. เมื่อลากเส้นเชื่อมจุดแล้วกรุณายกนิ้วขึ้นแล้วลากเส้นต่อไป'),
+              const SizedBox(height: 12),
               _buildInstructionRow(
-                '3. เมื่อลากเส้นเชื่อมจุดแล้วกรุณายกนิ้วขึ้นแล้วลากเส้นต่อไป',
+                '4. ถ้าหากจุดสีฟ้านั้นออกไปนอกหน้าจอ หรือ หลุดขอบให้กดเริ่มใหม่จนกว่าจุดทั้งหมดจะอยู่ในจอ',
               ),
               const SizedBox(height: 20),
             ],
