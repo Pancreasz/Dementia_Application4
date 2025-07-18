@@ -24025,7 +24025,7 @@ case 8:l=b0
 b=l
 b.toString
 k=J.kP(J.azp(b))
-j=A.hm("http://192.168.1.103:5000/upload")
+j=A.hm("https://moca-flask-container.azurewebsites.net/upload")
 i=A.aCM("POST",j)
 b=i.y
 a=k

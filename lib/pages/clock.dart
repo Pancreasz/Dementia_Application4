@@ -26,7 +26,7 @@ Future<void> saveCanvas(
     ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     Uint8List pngBytes = byteData!.buffer.asUint8List();
 
-    var uri = Uri.parse('http://192.168.1.103:5000/upload');
+    var uri = Uri.parse('https://moca-flask-container.azurewebsites.net/upload');
     var request = http.MultipartRequest('POST', uri);
 
     request.files.add(
