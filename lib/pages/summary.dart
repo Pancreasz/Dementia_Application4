@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:moca_main/moca/subtests.dart';
+import 'package:moca_main/scoring/session_total.dart';
 import 'score.dart';
 
 class EndPage extends StatelessWidget {
@@ -7,7 +9,14 @@ class EndPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final int totalScore = larkScore + clockScore + animalScore + attentionScore + reorderScore;
+    final total = computeSessionTotal(
+      larkScore: larkScore,
+      clockScore: clockScore,
+      animalScore: animalScore,
+      attentionScore: attentionScore,
+      reorderScore: reorderScore,
+      voiceOutcomes: voiceOutcomes,
+    );
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -50,21 +59,27 @@ class EndPage extends StatelessWidget {
                   // Result Card
                   _buildResultCard(
                     title: "ผลการทดสอบเบื้องต้น",
-                    content: "คุณเป็น: ${_getResultCategory(totalScore)}",
-                    contentColor: _getResultColor(totalScore),
-                    icon: _getResultIcon(totalScore),
+                    content: total.category == null
+                        ? "ไม่สามารถประเมินได้ เนื่องจากมีแบบทดสอบที่ถูกข้าม"
+                        : "คุณเป็น: ${total.category}",
+                    contentColor: _getResultColor(total),
+                    icon: _getResultIcon(total),
                   ),
                   
                   const SizedBox(height: 20),
                   
                   // Criteria Card
                   _buildInfoCard(
-                    title: "เกณฑ์การประเมิน:",
+                    title: "เกณฑ์การประเมิน (เต็ม 30 คะแนน):",
                     items: [
-                      "13-15: ปกติ",
-                      "9-13: บกพร่องเล็กน้อย",
-                      "5-9: มีความบกพร่อง",
-                      "0-5: เสี่ยงเป็นโรคประสาทเสื่อมสูง - ควรเข้าพบปรึกษาแพทย์",
+                      "26-30: ปกติ",
+                      "18-25: บกพร่องเล็กน้อย",
+                      "10-17: มีความบกพร่อง",
+                      "0-9: เสี่ยงสูง - ควรเข้าพบปรึกษาแพทย์",
+                      // Stated rather than left implicit: the drawing subtest
+                      // is administered on paper by a clinician, so every
+                      // patient here is scored one point below the scale.
+                      "หมายเหตุ: แบบทดสอบนี้ยังไม่รวมข้อวาดรูปทรง (1 คะแนน)",
                     ],
                   ),
                   
@@ -79,8 +94,11 @@ class EndPage extends StatelessWidget {
                       "แบบทดสอบทายชื่อสัตว์: $animalScore/3",
                       "แบบทดสอบลบเลข: $attentionScore/3",
                       "แบบทดสอบความจำ: $reorderScore/5",
+                      for (final spec in kVoiceSubtests)
+                        "${spec.section} (${spec.id}): "
+                            "${voiceOutcomes[spec.id] == null || voiceOutcomes[spec.id]!.skipped ? 'ข้าม' : '${voiceOutcomes[spec.id]!.score}/${spec.maxScore}'}",
                     ],
-                    totalScore: "คะแนนรวมทั้งหมด: $totalScore/15",
+                    totalScore: "คะแนนรวมทั้งหมด: ${total.score}/${total.maxScore}",
                   ),
                   
                   const SizedBox(height: 30),
@@ -259,24 +277,19 @@ class EndPage extends StatelessWidget {
     );
   }
 
-  String _getResultCategory(int score) {
-    if (score >= 13) return "ปกติ";
-    if (score >= 9) return "บกพร่องเล็กน้อย";
-    if (score >= 5) return "มีความบกพร่อง";
-    return "เสี่ยงเป็นโรคประสาทเสื่อมสูง";
-  }
-
-  Color _getResultColor(int score) {
-    if (score >= 13) return Colors.green.shade700;
-    if (score >= 9) return Colors.orange.shade700;
-    if (score >= 5) return Colors.orange.shade800;
+  Color _getResultColor(SessionTotal total) {
+    if (!total.isComplete) return Colors.grey.shade700;
+    if (total.score >= 26) return Colors.green.shade700;
+    if (total.score >= 18) return Colors.orange.shade700;
+    if (total.score >= 10) return Colors.orange.shade800;
     return Colors.red.shade700;
   }
 
-  IconData _getResultIcon(int score) {
-    if (score >= 13) return Icons.check_circle;
-    if (score >= 9) return Icons.info;
-    if (score >= 5) return Icons.warning;
+  IconData _getResultIcon(SessionTotal total) {
+    if (!total.isComplete) return Icons.help_outline;
+    if (total.score >= 26) return Icons.check_circle;
+    if (total.score >= 18) return Icons.info;
+    if (total.score >= 10) return Icons.warning;
     return Icons.error;
   }
 }
