@@ -72,7 +72,7 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
       currentIndex++;
       if (currentIndex >= shuffledAnimals.length) {
         animalScore = score;
-        Navigator.pushReplacementNamed(context, '/attention');
+        Navigator.pushReplacementNamed(context, '/digit-span-forward');
         quizFinished = true;
       }
     });
@@ -108,7 +108,7 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
                       ),
                     ),
                     onPressed: () {
-                      Navigator.pushNamed(context, '/attention');
+                      Navigator.pushNamed(context, '/digit-span-forward');
                     },
                     child: const Text('แบบทดสอบถัดไป'),
                   ),

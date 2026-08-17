@@ -7,6 +7,7 @@ import 'package:moca_main/pages/reorder_images_page.dart';
 import 'package:moca_main/pages/roiLobJed.dart';
 import 'package:moca_main/pages/select_images_page.dart';
 import 'package:moca_main/pages/summary.dart';
+import 'package:moca_main/moca/routes.dart';
 
 void main() {
   runApp(const MyApp());
@@ -34,6 +35,7 @@ class MyApp extends StatelessWidget {
         '/selectimages': (context) => SelectImagesPage(),
         '/reorderimages': (context) => ReorderImagesPage(),
         '/endpage': (context) => const EndPage(),
+        ...voiceSubtestRoutes(),
       },
     );
   }

@@ -8,6 +8,7 @@ void resetScores() {
   totalScore = 0;
   attentionScore = 0;
   reorderScore = 0;
+  voiceOutcomes.clear();
 }
 
 class HomePage extends StatelessWidget {

@@ -58,7 +58,7 @@ class _ReorderImagesPageState extends State<ReorderImagesPage> {
     globals.reorderScore = score;
     
     // Navigate directly to end page
-    Navigator.pushNamed(context, '/endpage');
+    Navigator.pushNamed(context, '/orientation');
   }
 
   @override

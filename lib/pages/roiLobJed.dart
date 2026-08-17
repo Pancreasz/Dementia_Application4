@@ -101,7 +101,7 @@ class _AttentionTestPageState extends State<AttentionTestPage> {
               ),
               onPressed: () {
                 _handleSubmit();
-                Navigator.pushNamed(context, '/reorderimages');
+                Navigator.pushNamed(context, '/sentence-repetition-1');
               },
               child: const Text("ส่งคำตอบ"),
             ),
