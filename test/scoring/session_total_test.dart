@@ -83,4 +83,31 @@ void main() {
     expect(total.maxScore, 23);
     expect(total.category, isNull);
   });
+
+  test('band boundaries map to the published MoCA categories', () {
+    String? categoryFor(int score) =>
+        SessionTotal(score: score, maxScore: 29, skippedIds: const []).category;
+
+    // >= 26 normal
+    expect(categoryFor(29), 'ปกติ');
+    expect(categoryFor(26), 'ปกติ');
+    // 18-25 MCI
+    expect(categoryFor(25), 'บกพร่องเล็กน้อย');
+    expect(categoryFor(18), 'บกพร่องเล็กน้อย');
+    // 10-17 moderate
+    expect(categoryFor(17), 'มีความบกพร่อง');
+    expect(categoryFor(10), 'มีความบกพร่อง');
+    // < 10 severe
+    expect(categoryFor(9), 'เสี่ยงสูง');
+    expect(categoryFor(0), 'เสี่ยงสูง');
+  });
+
+  test('no category is assigned at any score when something was skipped', () {
+    for (final score in [29, 26, 18, 10, 0]) {
+      expect(
+        SessionTotal(score: score, maxScore: 23, skippedIds: const ['orientation']).category,
+        isNull,
+      );
+    }
+  });
 }
