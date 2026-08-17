@@ -7,6 +7,7 @@ import 'orientation.dart';
 import 'sentence_repetition.dart';
 import 'subtest_outcome.dart';
 import 'verbal_fluency.dart';
+import 'vigilance.dart';
 
 /// Maps a subtest to its scorer. One place, so the session controller does not
 /// carry a switch and a new subtest is registered exactly once.
