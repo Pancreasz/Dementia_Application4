@@ -59,7 +59,7 @@ class HttpAsrClient implements AsrClient {
       // than an empty transcript matters: an empty transcript would be scored
       // as the patient having said nothing.
       throw AsrException(
-          'transcription failed with ${response.statusCode}: ${response.body}');
+          'transcription failed with ${response.statusCode}: ${utf8.decode(response.bodyBytes)}');
     }
 
     final Map<String, dynamic> body;
@@ -82,8 +82,14 @@ class HttpAsrClient implements AsrClient {
       }
     }
 
+    final rawText = body['text'];
+    if (rawText is! String) {
+      throw AsrException(
+          'transcription response had no usable "text" field: ${utf8.decode(response.bodyBytes)}');
+    }
+
     return AsrResult(
-      text: (body['text'] as String?) ?? '',
+      text: rawText,
       segments: segments,
     );
   }

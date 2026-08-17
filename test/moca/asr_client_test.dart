@@ -84,6 +84,23 @@ void main() {
     expect(() => client.transcribe([1]), throwsA(isA<AsrException>()));
   });
 
+  // A 200 response missing "text" is indistinguishable from a legitimately
+  // empty transcript unless it throws — same reasoning as the 503 case above.
+  test('throws on a 200 response with no text field', () async {
+    final mock = MockClient((request) async => http.Response(
+          jsonEncode({'segments': []}),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        ));
+
+    final client = HttpAsrClient(
+      endpoint: Uri.parse('https://example.test/transcribe'),
+      client: mock,
+    );
+
+    expect(() => client.transcribe([1]), throwsA(isA<AsrException>()));
+  });
+
   test('the fake returns what it was given', () async {
     final fake = FakeAsrClient(text: 'ยานพาหนะ');
     expect((await fake.transcribe([])).text, 'ยานพาหนะ');
