@@ -22,7 +22,8 @@
 - **No time limits and no on-screen clock** on any subtest except Verbal Fluency, whose 60 seconds is normed against the "≥11 words" cutoff.
 - **Orientation's year is Buddhist Era** (Gregorian + 543).
 - **Thai has no spaces between words.** Never use `split(' ')` on Thai text. Use substring matching or character scanning.
-- Thai text in this plan is test data and instruction copy — copy it verbatim, character for character.
+- Thai text in this plan is test data and instruction copy — copy it verbatim, character for character. All of it was confirmed by the project owner on 2026-08-17; none of it is placeholder. Do not "improve" the wording.
+- **`expectedSentence` and `stimulusAsset` must always change together**, as must Verbal Fluency's `instructionTh` and `initialLetter`. Nothing in the type system ties either pair, and a mismatch scores patients against a task they were never set while looking entirely normal.
 
 ### Deviation from the spec, decided during planning
 
@@ -97,12 +98,12 @@ There is no `ffmpeg` on this machine, but ad_hw's Python venv has PyAV 18.1.0, w
 
 **Files:**
 - Create: `tool/convert_audio.py`
-- Create: `assets/moca/audio/*.wav` (12 files, generated)
+- Create: `assets/moca/audio/*.wav` (14 files, generated)
 - Modify: `pubspec.yaml` (assets section)
 
 **Interfaces:**
 - Consumes: nothing
-- Produces: `assets/moca/audio/digits-forward.wav`, `digits-backward.wav`, `digit-0.wav` … `digit-9.wav`
+- Produces: `assets/moca/audio/digits-forward.wav`, `digits-backward.wav`, `digit-0.wav` … `digit-9.wav`, `sentence-1.wav`, `sentence-2.wav`
 
 - [ ] **Step 1: Write the conversion script**
 
@@ -122,14 +123,24 @@ import pathlib
 import av
 from av.audio.resampler import AudioResampler
 
-SRC = pathlib.Path("D:/moca_ad/ad_hw/src/renderer/public/moca/audio")
 DST = pathlib.Path("assets/moca/audio")
 
-NAMES = ["digits-forward", "digits-backward"] + [f"digit-{d}" for d in range(10)]
+AD_HW = pathlib.Path("D:/moca_ad/ad_hw/src/renderer/public/moca/audio")
+RECORDINGS = pathlib.Path("D:/moca_ad")
+
+# (source file, destination stem). The digit and digit-span stimuli come from
+# the ad_hw project; the two sentences were recorded separately. Both sets are
+# AAC in QuickTime containers named .mp3, so they convert identically.
+SOURCES = (
+    [(AD_HW / "digits-forward.mp3", "digits-forward"),
+     (AD_HW / "digits-backward.mp3", "digits-backward")]
+    + [(AD_HW / f"digit-{d}.mp3", f"digit-{d}") for d in range(10)]
+    + [(RECORDINGS / "sentence1.mp3", "sentence-1"),
+       (RECORDINGS / "sentence2.mp3", "sentence-2")]
+)
 
 
-def convert(stem):
-    src = SRC / f"{stem}.mp3"
+def convert(src, stem):
     dst = DST / f"{stem}.wav"
 
     inp = av.open(str(src))
@@ -154,10 +165,10 @@ def convert(stem):
 
 def main():
     DST.mkdir(parents=True, exist_ok=True)
-    for stem in NAMES:
-        duration = convert(stem)
+    for src, stem in SOURCES:
+        duration = convert(src, stem)
         # Durations are printed because the digit files overrun the 1000 ms
-        # vigilance slot, and Task 14's player must cut them off. Seeing the
+        # vigilance slot, and Task 13's player must cut them off. Seeing the
         # real numbers keeps that from being a surprise.
         print(f"{stem:20s} {duration * 1000:7.1f} ms")
 
@@ -173,16 +184,17 @@ cd D:\moca_ad\Dementia_Application4
 D:/moca_ad/ad_hw/sidecar/.venv/Scripts/python.exe tool/convert_audio.py
 ```
 
-Expected: twelve lines of durations. The `digit-*` files should print between roughly 1000 and 1400 ms — all at or above the 1000 ms vigilance interval, which is exactly why Task 14 cuts the sounding digit off.
+Expected: fourteen lines of durations. The `digit-*` files should print between roughly 1000 and 1400 ms — all at or above the 1000 ms vigilance interval, which is exactly why Task 13 cuts the sounding digit off. `sentence-1` should print ~5030 ms and `sentence-2` ~5460 ms; a wildly different number means the wrong file was picked up.
 
 - [ ] **Step 3: Verify the output is real WAV**
 
 ```powershell
 Get-ChildItem assets\moca\audio\*.wav | Measure-Object | Select-Object Count
 [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes("assets\moca\audio\digit-1.wav")[0..3])
+[System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes("assets\moca\audio\sentence-1.wav")[0..3])
 ```
 
-Expected: `Count: 12`, and `RIFF`.
+Expected: `Count: 14`, and `RIFF` twice.
 
 - [ ] **Step 4: Register the assets**
 
@@ -1252,10 +1264,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moca_main/scoring/sentence_repetition.dart';
 
 void main() {
-  // Placeholder content. The real sentences must come from the user's Thai
-  // MoCA form and do not exist in any repo yet — see Task 21. The scorer's
-  // behaviour is what these tests pin, not the sentence.
-  const sentence = 'ฉันรู้เพียงว่าวันนี้เป็นวันที่จอห์นจะช่วย';
+  // The real sentence 1, so these tests exercise the length and character mix
+  // the scorer actually sees. Thai has no word spaces, which is why the
+  // similarity is measured per character rather than per word.
+  const sentence = 'ฉันรู้ว่าจอมเป็นคนเดียวที่มาช่วยงานวันนี้';
 
   group('similarityRatio', () {
     test('is 1.0 for identical strings', () {
@@ -1288,7 +1300,11 @@ void main() {
     test('scores 1 despite a single-character recognizer slip', () {
       // One substituted character out of ~40 is recognizer noise, not a
       // patient error, and strict matching would fail a correct answer.
-      final heard = sentence.replaceRange(0, 1, 'ฉ');
+      // ฉ -> ช is a real substitution: the two are visually and acoustically
+      // close, which is exactly the confusion a recognizer makes.
+      final heard = sentence.replaceRange(0, 1, 'ช');
+      expect(heard, isNot(sentence), reason: 'the slip must actually differ');
+
       final outcome =
           scoreSentenceRepetition('sentence-repetition-1', heard, sentence);
       expect(outcome.score, 1);
@@ -2435,23 +2451,36 @@ void main() {
     expect(backward.expectedSequence, '247');
   });
 
-  // These two ship built but unreachable: they DECLARE a stimulus asset whose
-  // file does not exist yet, and the controller skips a voice subtest whose
-  // declared stimulus fails to load.
-  //
   // Declaring the path rather than leaving it null is the whole point. Null
   // means "this subtest has no stimulus by design", which is true of
   // Abstraction and Orientation — the controller opens the microphone
   // immediately for those. If sentence repetition were null too, the
   // controller could not tell the two apart and would record the patient
   // answering a sentence they never heard.
-  test('sentence repetition declares a stimulus asset that does not exist yet', () {
+  test('sentence repetition declares both a stimulus and a sentence', () {
     final items =
-        kVoiceSubtests.where((s) => s.id.startsWith('sentence-repetition'));
+        kVoiceSubtests.where((s) => s.id.startsWith('sentence-repetition')).toList();
     expect(items.length, 2);
     for (final spec in items) {
       expect(spec.stimulusAsset, isNotNull, reason: spec.id);
+      expect(spec.expectedSentence, isNotNull, reason: spec.id);
+      expect(spec.expectedSentence!.trim(), isNotEmpty, reason: spec.id);
     }
+  });
+
+  // The scorer compares speech against expectedSentence while the patient
+  // hears stimulusAsset. Nothing in the type system ties the two together, so
+  // a mismatched pair would score every patient against a sentence they never
+  // heard — and look completely normal.
+  test('each sentence item pairs its own asset with its own sentence', () {
+    final one =
+        kVoiceSubtests.firstWhere((s) => s.id == 'sentence-repetition-1');
+    final two =
+        kVoiceSubtests.firstWhere((s) => s.id == 'sentence-repetition-2');
+
+    expect(one.stimulusAsset, 'assets/moca/audio/sentence-1.wav');
+    expect(two.stimulusAsset, 'assets/moca/audio/sentence-2.wav');
+    expect(one.expectedSentence, isNot(two.expectedSentence));
   });
 
   test('subtests with no stimulus by design declare none', () {
@@ -2498,9 +2527,13 @@ class SubtestSpec {
   final int maxScore;
   final ResponseMode responseMode;
 
-  /// Played before the microphone opens. Null when the subtest has no stimulus
-  /// — or, for sentence repetition, when its recording does not exist yet, in
-  /// which case the controller skips the subtest rather than failing it.
+  /// Played before the microphone opens.
+  ///
+  /// Null means this subtest has no stimulus BY DESIGN — Abstraction and
+  /// Orientation ask their question in the instruction text, so the microphone
+  /// opens immediately. A non-null path whose file fails to load is a
+  /// different situation entirely: the controller skips that subtest rather
+  /// than recording a patient answering a question they never heard.
   final String? stimulusAsset;
 
   /// Digit Span only.
@@ -2603,23 +2636,23 @@ const List<SubtestSpec> kVoiceSubtests = [
     // subtest ends when the audio ends.
     timeLimitSec: 30,
   ),
-  // The two sentence repetition items ship built and tested but unreachable.
-  // They DECLARE a stimulus asset whose file does not exist yet, and the
-  // controller skips a voice subtest whose declared stimulus fails to load.
+  // Sentences and recordings supplied by the user on 2026-08-17. The
+  // expectedSentence text and the audio must stay in step: the scorer compares
+  // what the patient said against this string, so editing one without
+  // re-recording the other silently scores every patient against a sentence
+  // they never heard.
   //
-  // Declaring the path rather than leaving it null is deliberate: null means
-  // "no stimulus by design" (Abstraction, Orientation), and the controller
-  // opens the microphone immediately for those. Conflating the two would
-  // record a patient answering a sentence they never heard.
-  //
-  // Both sentences below are PLACEHOLDERS. See design_docs/CONTENT-NEEDED.md.
+  // stimulusAsset is declared rather than left null. Null means "no stimulus
+  // by design" (Abstraction, Orientation), where the microphone opens
+  // immediately. The controller skips a subtest whose DECLARED stimulus fails
+  // to load, which is the safety net if the asset ever fails to bundle.
   SubtestSpec(
     id: 'sentence-repetition-1',
     section: 'ภาษา',
     instructionTh: 'ฟังประโยคต่อไปนี้ แล้วพูดทวนให้เหมือนเดิมทุกคำ',
     maxScore: 1,
     stimulusAsset: 'assets/moca/audio/sentence-1.wav',
-    expectedSentence: 'ฉันรู้เพียงว่าวันนี้เป็นวันที่จอห์นจะช่วย',
+    expectedSentence: 'ฉันรู้ว่าจอมเป็นคนเดียวที่มาช่วยงานวันนี้',
     timeLimitSec: 20,
   ),
   SubtestSpec(
@@ -2628,7 +2661,7 @@ const List<SubtestSpec> kVoiceSubtests = [
     instructionTh: 'ฟังประโยคต่อไปนี้ แล้วพูดทวนให้เหมือนเดิมทุกคำ',
     maxScore: 1,
     stimulusAsset: 'assets/moca/audio/sentence-2.wav',
-    expectedSentence: 'แมวมักจะซ่อนตัวใต้โซฟาเมื่อมีสุนัขอยู่ในห้อง',
+    expectedSentence: 'แมวมักจะซ่อนตัวอยู่หลังเก้าอี้เมื่อมีหมาอยู่ในห้อง',
     timeLimitSec: 20,
   ),
   SubtestSpec(
@@ -2949,9 +2982,9 @@ void main() {
     expect(controller.phase, SessionPhase.recording);
   });
 
-  // Sentence repetition ships without its recordings. A voice subtest whose
-  // stimulus is declared but absent must not silently record the patient
-  // answering a question they never heard.
+  // The safety net. Every stimulus file ships in the bundle, but a voice
+  // subtest whose declared stimulus fails to load must not silently record the
+  // patient answering a question they never heard.
   test('skips a voice subtest whose declared stimulus does not exist', () async {
     final s = spec('sentence-repetition-1');
     final recorder = FakeVoiceRecorder();
@@ -4229,12 +4262,12 @@ git commit -m "docs: record manual verification results for voice subtests"
 
 ---
 
-### Task 21: Hand off the blocked content
+### Task 21: Record content status and the remaining dependency
 
-Three of the fourteen points cannot be finished from inside this repo. This task makes what is needed unambiguous rather than leaving it in a design document nobody re-reads.
+All fourteen points are built with real content. One external dependency remains — the `/transcribe` endpoint. This task makes that unambiguous rather than leaving it in a design document nobody re-reads, and records the two content pairings that no type system enforces.
 
 **Files:**
-- Create: `design_docs/CONTENT-NEEDED.md`
+- Create: `design_docs/CONTENT-STATUS.md`
 - Modify: `README.md`
 
 **Interfaces:**
@@ -4243,61 +4276,58 @@ Three of the fourteen points cannot be finished from inside this repo. This task
 
 - [ ] **Step 1: Write the content checklist**
 
-Create `design_docs/CONTENT-NEEDED.md`:
+Create `design_docs/CONTENT-STATUS.md`:
 
 ```markdown
-# Content still needed
+# Content and configuration status
 
-Three of the fourteen new points cannot be completed from inside this repo.
-Everything else is built, tested and working.
+All 29 implemented points are built and tested. One external dependency
+remains before the voice subtests can score anything.
 
-## 1. Sentence Repetition — 2 points, currently skipped at runtime
+## BLOCKING: the /transcribe endpoint
 
-`lib/moca/subtests.dart` carries two PLACEHOLDER sentences. They are not from
-the Thai MoCA form and must be replaced.
+Until the Flask backend implements it, all thirteen voice-scored points reach
+their error screen and can only be skipped. Vigilance (1 point) is unaffected —
+it is tap-based and needs no speech recognition.
 
-Needed:
-- The two sentences from the Thai MoCA-Basic form, verbatim.
-- A recording of each, as a WAV file.
+The contract is in
+`design_docs/superpowers/specs/2026-08-17-voice-subtests-design.md`. The
+reference implementation to port is `ad_hw/sidecar/asr_server.py`, which
+already works.
 
-Then:
-1. Replace `expectedSentence` on both specs in `lib/moca/subtests.dart`.
-2. Save the recordings as `assets/moca/audio/sentence-1.wav` and
-   `sentence-2.wav`. Convert with `tool/convert_audio.py` if the source is not
-   already 16 kHz mono WAV.
-3. Set `stimulusAsset` on both specs to those paths.
-
-Until step 3, the controller skips both subtests rather than recording a
-patient answering a question they never heard. That is deliberate.
-
-## 2. Verbal Fluency — 1 point, currently guessing the prompt
-
-`lib/moca/subtests.dart` uses the letter ก. If the Thai form specifies a
-different letter — or a category rather than a letter — update `initialLetter`
-and `instructionTh` together. Setting `initialLetter` to null switches to
-category mode, where every distinct word counts.
-
-**The instruction text on screen and the filter in the scorer must agree.** A
-patient told one thing and scored on another produces what looks like a
-cognitive deficit.
-
-## 3. Orientation place and province — affects 2 of its 6 points
-
-`lib/moca/session_config.dart` hardcodes these. An Orientation score is only
-meaningful if they match where the patient actually is. Replace them, or build
-the settings screen the TODO there describes.
-
-## 4. The /transcribe endpoint
-
-Until the Flask backend implements it, every voice subtest reaches its error
-screen and can only be skipped. The contract is in
-`design_docs/superpowers/specs/2026-08-17-voice-subtests-design.md`; the
-reference implementation to port is `ad_hw/sidecar/asr_server.py`.
-
-The one addition beyond that reference: the response must include `segments`
+One addition beyond that reference: the response must include `segments`
 (faster-whisper produces them and the sidecar currently discards them), because
 Verbal Fluency counts distinct segments rather than splitting text — Thai has
 no spaces between words, so text splitting cannot count words reliably.
+
+## Supplied and in place — change only if the form changes
+
+Confirmed by the project owner on 2026-08-17.
+
+| Item | Value | Lives in |
+|---|---|---|
+| Sentence 1 | ฉันรู้ว่าจอมเป็นคนเดียวที่มาช่วยงานวันนี้ | `lib/moca/subtests.dart` + `assets/moca/audio/sentence-1.wav` |
+| Sentence 2 | แมวมักจะซ่อนตัวอยู่หลังเก้าอี้เมื่อมีหมาอยู่ในห้อง | `lib/moca/subtests.dart` + `assets/moca/audio/sentence-2.wav` |
+| Fluency prompt | letter ก, cutoff ≥11 words in 60 s | `lib/moca/subtests.dart` |
+| Orientation place | โรงพยาบาลศิริราช | `lib/moca/session_config.dart` |
+| Orientation province | กรุงเทพ | `lib/moca/session_config.dart` |
+
+Two pairings are not enforced by any type and must be changed together:
+
+- **`expectedSentence` and its `stimulusAsset`.** The scorer compares speech
+  against the text while the patient hears the audio. Editing one without
+  re-recording the other scores every patient against a sentence they never
+  heard, and looks completely normal.
+- **Verbal Fluency's `instructionTh` and `initialLetter`.** A patient told one
+  thing and scored on another produces what reads as a cognitive deficit.
+  Setting `initialLetter` to null switches to category mode, where every
+  distinct word counts.
+
+## Known limitation: Orientation is not configurable at runtime
+
+`session_config.dart` hardcodes place and province. An Orientation score is
+only meaningful if they match where the patient actually is, so a deployment to
+a second site needs the settings screen described in the TODO there.
 ```
 
 - [ ] **Step 2: Point at it from the README**
@@ -4309,17 +4339,17 @@ Add to the end of `README.md`:
 
 29 of 30 points are implemented. Cube copy is administered on paper.
 
-Three points are built but blocked on content that must come from the Thai MoCA
-form — see [design_docs/CONTENT-NEEDED.md](design_docs/CONTENT-NEEDED.md).
-
-Voice scoring requires a `/transcribe` endpoint on the backend; the contract is
-in `design_docs/superpowers/specs/2026-08-17-voice-subtests-design.md`.
+Voice scoring (13 of those points) requires a `/transcribe` endpoint on the
+backend, which is not deployed yet — until it is, those subtests can only be
+skipped. Vigilance needs no backend. See
+[design_docs/CONTENT-STATUS.md](design_docs/CONTENT-STATUS.md) for the
+contract and for the test content that must be changed in pairs.
 ```
 
 - [ ] **Step 3: Commit**
 
 ```powershell
-git add design_docs/CONTENT-NEEDED.md README.md
+git add design_docs/CONTENT-STATUS.md README.md
 git commit -m "docs: list the content still needed to finish the last 3 points"
 ```
 

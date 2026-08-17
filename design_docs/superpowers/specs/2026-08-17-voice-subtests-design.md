@@ -33,8 +33,12 @@ this design ports it rather than reinventing it.
    stream, and Sentence Repetition's sentences. No instruction narration is ported.
 4. **Scoring rescales to published MoCA cutoffs**: ≥26 normal, 18–25 MCI, 10–17 moderate,
    <10 severe. The current /15 bands were never clinically derived and are wrong at /29.
-5. **Sentence Repetition and Verbal Fluency ship built but disabled** pending Thai content
-   only the user has. They must not block the other eleven points.
+5. ~~**Sentence Repetition and Verbal Fluency ship built but disabled** pending Thai content
+   only the user has.~~ **Resolved 2026-08-17**, before implementation began: the user supplied
+   both sentences with recordings, confirmed the fluency prompt (letter ก, ≥11 words in 60 s),
+   and confirmed place/province. All fourteen points ship with real content. The
+   skip-on-missing-stimulus behaviour is retained as a safety net rather than as the expected
+   path — see "Scorers" below.
 
 ## Scope
 
@@ -43,8 +47,8 @@ this design ports it rather than reinventing it.
 | `digit-span-forward` | 1 | voice | `digits-forward.mp3` | port of ad_hw |
 | `digit-span-backward` | 1 | voice | `digits-backward.mp3` | port of ad_hw |
 | `vigilance` | 1 | tap | 29 scheduled `digit-N.mp3` | port of ad_hw |
-| `sentence-repetition-1` | 1 | voice | **missing** | new |
-| `sentence-repetition-2` | 1 | voice | **missing** | new |
+| `sentence-repetition-1` | 1 | voice | `sentence-1.wav` | new |
+| `sentence-repetition-2` | 1 | voice | `sentence-2.wav` | new |
 | `verbal-fluency` | 1 | voice (60 s) | none | new |
 | `abstraction-1` | 1 | voice | none | port of ad_hw |
 | `abstraction-2` | 1 | voice | none | port of ad_hw |
@@ -91,9 +95,14 @@ pure function there, so `flutter test` covers all of them with no hardware and n
 open a real microphone. This mirrors ad_hw's dependency-injection arrangement, which is why
 its 219 tests can run in CI.
 
-New packages: `record` (microphone; Windows, Android, web) and `just_audio` (playback with
+New packages: `record` (microphone; Windows, Android, web) and `audioplayers` (playback with
 the scheduling precision Vigilance needs). `http` and `permission_handler` are already
 present.
+
+`audioplayers` replaced `just_audio` during planning: the target platform is Windows desktop,
+where `audioplayers` has first-party support and `just_audio` depends on a
+community-maintained federated package. Playback sits behind the `AudioPlayback` interface
+either way, so the choice is reversible without touching any scorer or the controller.
 
 ### Why one engine rather than nine pages
 
@@ -263,9 +272,9 @@ than charged. The scorer is a straight port; the risk is entirely in playback (b
 
 **Vigilance playback.** The score depends entirely on which one-second window a tap landed in,
 so the stimulus cannot be one long recording; the onsets would become hand-measured estimates
-needing re-measurement on every re-record. Ten digit files are preloaded into `just_audio`
-players and each of the 29 onsets is fired at an absolute offset from a single `Stopwatch` —
-**not** `Timer.periodic`, which drifts measurably over 29 seconds.
+needing re-measurement on every re-record. Each of the 29 onsets is fired at an absolute offset
+from one shared start reference — **not** by chaining timers, whose few milliseconds of
+lateness each compound into the next and drift measurably over 29 seconds.
 
 The files run 1088–1344 ms against a 1000 ms interval, so the player must silence the sounding
 digit the moment the next one starts; an over-long file must lose its own tail rather than
@@ -293,11 +302,16 @@ choice — it is what the "≥11 words" cutoff is normed against.
 **Sentence Repetition** (2 pts). MoCA scores this strictly verbatim: any omission or
 substitution scores 0. Applied to ASR output, strict matching fails correct patients on
 recognizer error rather than on memory. This design uses normalized comparison with a
-character-level similarity threshold and stores the transcript for review.
+character-level similarity threshold (0.9) and stores the transcript for review.
 
-Both the sentences and their recordings are missing from every repo involved. The subtest ships
-built and unit-tested against placeholder content, and skips itself when its audio file is
-absent, so it cannot block the other eleven points.
+Sentences and recordings were supplied by the user on 2026-08-17:
+
+1. ฉันรู้ว่าจอมเป็นคนเดียวที่มาช่วยงานวันนี้
+2. แมวมักจะซ่อนตัวอยู่หลังเก้าอี้เมื่อมีหมาอยู่ในห้อง
+
+The subtest still skips itself when its audio file cannot be loaded. That is now a safety net
+rather than the expected path: it means a stimulus that fails to bundle produces a skip
+instead of recording a patient answering a question they never heard.
 
 ## Time limits
 
@@ -327,24 +341,32 @@ and this document should not be read as claiming otherwise.
 
 ## Assets
 
-Copied from `ad_hw/src/renderer/public/moca/audio/` into `assets/moca/audio/`:
-`digits-forward.mp3`, `digits-backward.mp3`, `digit-0.mp3` … `digit-9.mp3` (12 files).
+Fourteen files land in `assets/moca/audio/` as 16 kHz mono WAV: twelve converted from
+`ad_hw/src/renderer/public/moca/audio/` (`digits-forward`, `digits-backward`, `digit-0` …
+`digit-9`), plus `sentence-1` and `sentence-2` converted from the user's recordings.
 
-These files are **QuickTime containers named `.mp3`** — all of them. Chromium plays them
-because it sniffs content rather than extension. Flutter's `just_audio` must be verified
-against them early; if it rejects them, they need remuxing, and that is a task-zero risk rather
-than a late surprise.
+Every source file is **AAC in a QuickTime container named `.mp3`** — the ad_hw files and the
+new recordings alike (verified: `ftypqt`, 48 kHz mono). Chromium plays them because it sniffs
+content rather than extension; a Flutter audio plugin may not.
 
-Sentence Repetition's stimulus files do not exist and are not copied.
+Rather than gamble on that, all of them are converted to WAV up front by `tool/convert_audio.py`
+using PyAV from ad_hw's existing venv, which bundles FFmpeg — no installation, and no ffmpeg on
+PATH required. The conversion was proven on `digit-1.mp3` during planning: valid RIFF/WAVE out,
+1.024 s. WAV is also what `/transcribe` wants, so the same format serves both ends.
 
 ## Dependencies on the user
 
-1. The Flask backend repo, to add `/transcribe`.
-2. Two Thai sentences for Sentence Repetition, plus recordings of them.
-3. The Verbal Fluency prompt (which letter or category the Thai form specifies).
-4. `place` and `province` values for Orientation.
+1. ~~Two Thai sentences for Sentence Repetition, plus recordings.~~ **Supplied 2026-08-17.**
+2. ~~The Verbal Fluency prompt.~~ **Confirmed 2026-08-17:** letter ก, cutoff ≥11 words in 60 s.
+3. ~~`place` and `province` for Orientation.~~ **Confirmed 2026-08-17:** โรงพยาบาลศิริราช / กรุงเทพ.
+4. The digit sequences, vigilance sequence, and abstraction pairs inherited from ad_hw were
+   **confirmed 2026-08-17** as matching the user's Thai form.
+5. **Outstanding: the Flask backend repo, to add `/transcribe`.**
 
-Items 2 and 3 block 3 of the 14 points. Items 1 and 4 block verification but not construction.
+Only item 5 remains. It blocks 13 of the 14 points from scoring — every voice subtest reaches
+its error screen and can only be skipped until the endpoint exists. Vigilance is unaffected,
+being tap-based. Nothing about construction is blocked; the Dart side is built and tested
+against `FakeAsrClient`.
 
 ## Out of scope
 
