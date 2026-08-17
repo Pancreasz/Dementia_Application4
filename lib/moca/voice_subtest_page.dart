@@ -89,25 +89,30 @@ class _VoiceSubtestPageState extends State<VoiceSubtestPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.spec.section),
-        backgroundColor: const Color.fromARGB(255, 87, 152, 225),
-        automaticallyImplyLeading: false,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              widget.spec.instructionTh,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 40),
-            ..._bodyForPhase(),
-          ],
+    // A patient cannot back out of a voice subtest mid-administration — that
+    // would otherwise leave a recording in flight and no outcome written.
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.spec.section),
+          backgroundColor: const Color.fromARGB(255, 87, 152, 225),
+          automaticallyImplyLeading: false,
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                widget.spec.instructionTh,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              ..._bodyForPhase(),
+            ],
+          ),
         ),
       ),
     );

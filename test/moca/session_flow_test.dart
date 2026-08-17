@@ -10,6 +10,17 @@ void main() {
     }
   });
 
+  // The test above only reuses routeFor() to build its expectation, so it can
+  // only catch a missing subtest, never a wrong routing scheme. Assert a
+  // literal string directly.
+  test('a known route literal is registered', () {
+    expect(voiceSubtestRoutes().containsKey('/digit-span-forward'), isTrue);
+  });
+
+  test('nextRouteAfter throws for an unknown subtest id', () {
+    expect(() => nextRouteAfter('not-a-real-subtest'), throwsArgumentError);
+  });
+
   test('routes are derived from ids, so they cannot drift apart', () {
     expect(routeFor('digit-span-forward'), '/digit-span-forward');
     expect(routeFor('orientation'), '/orientation');
