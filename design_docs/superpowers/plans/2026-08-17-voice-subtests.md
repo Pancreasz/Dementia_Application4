@@ -2069,8 +2069,19 @@ class DeviceAudioPlayback implements AudioPlayback {
         : assetPath;
 
     await _player.stop();
+
+    // Subscribe BEFORE starting playback. onPlayerComplete is a broadcast
+    // stream, so a file that finishes before the subscription attaches would
+    // leave this future pending forever — and the digit files are only about
+    // a second long, which is well inside that window.
+    //
+    // This is load-bearing rather than defensive: the session controller
+    // implements "the microphone never opens before playback finishes" by
+    // awaiting this future. Its unit tests use FakeAudioPlayback, so no test
+    // in the suite can catch a hang here.
+    final completed = _player.onPlayerComplete.first;
     await _player.play(AssetSource(source));
-    await _player.onPlayerComplete.first;
+    await completed;
   }
 
   @override
