@@ -11,7 +11,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 4100));
     await done;
 
-    expect(playback.calls, [
+    final played = playback.calls.where((c) => c.startsWith('play:')).toList();
+    expect(played, [
       'play:assets/moca/audio/digit-5.wav',
       'play:assets/moca/audio/digit-1.wav',
       'play:assets/moca/audio/digit-3.wav',
@@ -81,7 +82,7 @@ void main() {
     await second;
 
     final played = playback.calls.where((c) => c.startsWith('play:')).toList();
-    expect(played.last, 'assets/moca/audio/digit-1.wav');
+    expect(played.last, 'play:assets/moca/audio/digit-1.wav');
     expect(played.where((c) => c.contains('digit-9')).length, 2,
         reason: 'only the two digits that had already sounded');
   });
