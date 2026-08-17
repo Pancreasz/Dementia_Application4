@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moca_main/moca/asr_client.dart';
 import 'package:moca_main/moca/audio_player.dart';
@@ -139,6 +141,147 @@ void main() {
     expect(controller.phase, SessionPhase.done);
   });
 
+  // Round-2 fix: finishRecording() is the only path that writes a real score,
+  // and was the only score-writing path with no generation guard. A skip
+  // issued while transcription is in flight must win — a subtest the operator
+  // marked never-administered must not have its skip silently overwritten by
+  // a score that resolves later.
+  test('a skip during in-flight transcription is not overwritten when it resolves',
+      () async {
+    final blocking = _BlockingAsrClient();
+    final controller = build(spec('digit-span-forward'), asr: blocking);
+
+    await controller.begin();
+    final finishing = controller.finishRecording();
+
+    final skipOutcome = controller.skip();
+    blocking.gate.complete(const AsrResult(text: 'สองหนึ่งแปดห้าสี่'));
+    await finishing;
+
+    expect(controller.outcome, same(skipOutcome));
+    expect(controller.outcome!.skipped, isTrue);
+    expect(controller.outcome!.maxScore, 0);
+  });
+
+  // A retry followed by a second begin() must not let attempt 1's transcript
+  // land once it finally resolves — attempt 2 may already have its own
+  // microphone open by then.
+  test('a stale finishRecording does not overwrite a later attempt', () async {
+    final blocking = _BlockingAsrClient();
+    final controller = build(spec('digit-span-forward'), asr: blocking);
+
+    await controller.begin();
+    final finishing = controller.finishRecording();
+
+    controller.retry();
+    await controller.begin();
+    expect(controller.phase, SessionPhase.recording);
+
+    blocking.gate.complete(const AsrResult(text: 'สองหนึ่งแปดห้าสี่'));
+    await finishing;
+
+    expect(controller.phase, SessionPhase.recording);
+    expect(controller.outcome, isNull);
+  });
+
+  // The common abandonment case: the UI shows Skip/Retry exactly while
+  // phase == recording, i.e. while the microphone is open. Both must close it
+  // rather than leaving it live into the next subtest.
+  test('skip stops an open microphone', () async {
+    final recorder = FakeVoiceRecorder();
+    final controller = build(spec('digit-span-forward'), recorder: recorder);
+
+    await controller.begin();
+    expect(controller.phase, SessionPhase.recording);
+
+    controller.skip();
+
+    expect(recorder.calls, contains('stop'));
+  });
+
+  test('retry stops an open microphone', () async {
+    final recorder = FakeVoiceRecorder();
+    final controller = build(spec('digit-span-forward'), recorder: recorder);
+
+    await controller.begin();
+    expect(controller.phase, SessionPhase.recording);
+
+    controller.retry();
+
+    expect(recorder.calls, contains('stop'));
+  });
+
+  // A double-tap on submit must not re-score: the recording is already gone
+  // by the second call, so it would silently score an empty transcript over a
+  // real one — a passed subtest turning into a failed one, silently.
+  test('a second finishRecording call does not re-score', () async {
+    final controller = build(spec('digit-span-forward'));
+
+    await controller.begin();
+    await controller.finishRecording();
+    final firstOutcome = controller.outcome;
+
+    await controller.finishRecording();
+
+    expect(controller.outcome, same(firstOutcome));
+  });
+
+  // Guards the existing abandoned() checks against future removal: nothing
+  // else in this file currently exercises two overlapping begin() calls on
+  // the voice path end to end.
+  test('two rapid begin calls result in exactly one playback and one microphone open',
+      () async {
+    final playback = FakeAudioPlayback();
+    final recorder = FakeVoiceRecorder();
+    final controller =
+        build(spec('digit-span-forward'), playback: playback, recorder: recorder);
+
+    final first = controller.begin();
+    final second = controller.begin();
+    await first;
+    await second;
+
+    expect(playback.calls.where((c) => c.startsWith('play:')).length, 1);
+    expect(recorder.calls.where((c) => c == 'start').length, 1);
+  });
+
+  test('a recorder that throws on start enters the error phase', () async {
+    final controller = build(
+      spec('digit-span-forward'),
+      recorder: FakeVoiceRecorder(throwsOnStart: StateError('mic denied')),
+    );
+
+    await controller.begin();
+
+    expect(controller.phase, SessionPhase.error);
+    expect(controller.outcome, isNull);
+  });
+
+  // Navigating back during transcription needs no UI race: begin() itself can
+  // be suspended (mid-playback) when dispose() arrives. A resumed begin() must
+  // not touch the now-disposed recorder or notify a disposed ChangeNotifier.
+  test('dispose during an in-flight begin does not resume into a disposed controller',
+      () async {
+    final gated = _GatedPlayback();
+    final recorder = FakeVoiceRecorder();
+    final controller =
+        build(spec('digit-span-forward'), playback: gated, recorder: recorder);
+
+    final begun = controller.begin();
+    // Let assetExists resolve and playback.play() be called, but not finish.
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.phase, SessionPhase.stimulus);
+
+    controller.dispose();
+    gated.gate.complete();
+
+    await begun;
+
+    // dispose() itself legitimately calls recorder.dispose() — what must
+    // never happen is the resumed begin() calling recorder.start() on it.
+    expect(recorder.calls, isNot(contains('start')));
+  });
+
   group('tap mode', () {
     testWidgets('runs the digit sequence and scores the taps', (tester) async {
       final controller = build(spec('vigilance'));
@@ -200,6 +343,31 @@ class _RecordingRecorder implements VoiceRecorder {
   Future<void> start() async => order.add('start');
   @override
   Future<List<int>> stop() async => const [1];
+  @override
+  Future<void> dispose() async {}
+}
+
+/// An ASR client whose transcribe() never resolves until the test completes
+/// [gate] — lets a test act (skip, retry, a second begin) while
+/// finishRecording() is genuinely suspended waiting on the network, the same
+/// way a real transcription request would be.
+class _BlockingAsrClient implements AsrClient {
+  final Completer<AsrResult> gate = Completer<AsrResult>();
+
+  @override
+  Future<AsrResult> transcribe(List<int> audioBytes, {String language = 'th'}) =>
+      gate.future;
+}
+
+/// Playback that never resolves until the test completes [gate] — lets a test
+/// dispose the controller while begin() is genuinely suspended mid-stimulus.
+class _GatedPlayback implements AudioPlayback {
+  final Completer<void> gate = Completer<void>();
+
+  @override
+  Future<void> play(String assetPath) => gate.future;
+  @override
+  Future<void> stop() async {}
   @override
   Future<void> dispose() async {}
 }
