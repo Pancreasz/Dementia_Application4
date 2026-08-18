@@ -16,6 +16,19 @@ void main() {
     test('returns false if no accepted keyword appears', () {
       expect(keywordMatch('I saw a cat', ['สิงโต', 'lion']), isFalse);
     });
+
+    // Documents current behaviour, not a requirement: keywordMatch is bare
+    // String.contains with no digit boundaries, so a short numeric keyword
+    // matches inside any longer number that contains it as a substring. This
+    // is exactly the shape of bug that let Orientation's date item score for
+    // free off the Buddhist Era year (see lib/scoring/orientation.dart,
+    // _numberStated). keywordMatch itself is unsuitable for numeric matching
+    // — callers scoring a number must use a boundary-aware matcher instead.
+    test('a short numeric keyword matches inside a longer number', () {
+      expect(keywordMatch('ปี 2569', ['6']), isTrue);
+      expect(keywordMatch('ปี 2569', ['25']), isTrue);
+      expect(keywordMatch('วันที่ 15', ['5']), isTrue);
+    });
   });
 
   group('extractDigitSequence', () {

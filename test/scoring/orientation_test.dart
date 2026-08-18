@@ -44,4 +44,69 @@ void main() {
   test('awards 0/6 for an unrelated answer', () {
     expect(score('ไม่ทราบ').score, 0);
   });
+
+  // Regression coverage for the substring-match bug: a bare .contains() match
+  // hands the date point to anyone who states only the (4-digit) Buddhist Era
+  // year, because the 1-2 digit date is frequently a substring of it.
+  group('date must be stated, not merely implied by the year', () {
+    test('reference 2026-08-06: stating only the year does not score the date',
+        () {
+      // BE year is 2569. "2569".contains("6") is true, so a substring
+      // matcher awards the date for free on the 6th.
+      final outcome = scoreOrientation(
+        'ปี 2569',
+        referenceDate: DateTime(2026, 8, 6),
+        place: 'โรงพยาบาลศิริราช',
+        province: 'กรุงเทพ',
+      );
+      expect(outcome.detail['date'], isFalse);
+    });
+
+    test(
+        'reference 2026-08-06: stating the WRONG date does not score, even '
+        'though its digit appears in the year', () {
+      final outcome = scoreOrientation(
+        'วันที่ 7 ปี 2569',
+        referenceDate: DateTime(2026, 8, 6),
+        place: 'โรงพยาบาลศิริราช',
+        province: 'กรุงเทพ',
+      );
+      expect(outcome.detail['date'], isFalse);
+      expect(outcome.detail['year'], isTrue);
+    });
+
+    test('reference 2026-08-06: stating the correct date and year scores both',
+        () {
+      final outcome = scoreOrientation(
+        'วันที่ 6 ปี 2569',
+        referenceDate: DateTime(2026, 8, 6),
+        place: 'โรงพยาบาลศิริราช',
+        province: 'กรุงเทพ',
+      );
+      expect(outcome.detail['date'], isTrue);
+      expect(outcome.detail['year'], isTrue);
+    });
+
+    test('reference 2026-08-25: stating only the year does not score the date',
+        () {
+      // "2569".contains("25") is also true.
+      final outcome = scoreOrientation(
+        'ปี 2569',
+        referenceDate: DateTime(2026, 8, 25),
+        place: 'โรงพยาบาลศิริราช',
+        province: 'กรุงเทพ',
+      );
+      expect(outcome.detail['date'], isFalse);
+    });
+
+    test('reference 2026-08-05: "15" must not match a stated date of 5', () {
+      final outcome = scoreOrientation(
+        'วันที่ 15',
+        referenceDate: DateTime(2026, 8, 5),
+        place: 'โรงพยาบาลศิริราช',
+        province: 'กรุงเทพ',
+      );
+      expect(outcome.detail['date'], isFalse);
+    });
+  });
 }

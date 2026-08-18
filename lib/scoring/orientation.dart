@@ -26,6 +26,16 @@ const _thaiDays = [
   'วันอาทิตย์',
 ];
 
+/// Matches a number as a standalone value rather than as a substring.
+///
+/// The date is 1-2 digits and the Buddhist Era year is 4, so a bare substring
+/// match hands the date point to any patient who merely states the year:
+/// "2569" contains "6", so the 6th of any month in BE 2569 scores for free —
+/// and a patient who states the WRONG date still scores when its digit happens
+/// to appear in the year. Digit boundaries close both.
+bool _numberStated(String normalized, String number) =>
+    RegExp('(?<!\\d)${RegExp.escape(number)}(?!\\d)').hasMatch(normalized);
+
 /// Six independent items, one point each. Note the year is Buddhist Era
 /// (Gregorian + 543), as Thai MoCA forms use.
 SubtestOutcome scoreOrientation(
@@ -45,10 +55,15 @@ SubtestOutcome scoreOrientation(
     'province': province,
   };
 
+  final normalized = normalizeText(transcript);
+  const numericKeys = {'date', 'year'};
+
   final detail = <String, dynamic>{};
   var score = 0;
   items.forEach((key, expected) {
-    final correct = keywordMatch(transcript, [expected]);
+    final correct = numericKeys.contains(key)
+        ? _numberStated(normalized, expected)
+        : keywordMatch(normalized, [expected]);
     detail[key] = correct;
     if (correct) score += 1;
   });
