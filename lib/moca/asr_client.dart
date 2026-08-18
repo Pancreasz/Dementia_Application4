@@ -29,9 +29,13 @@ abstract class AsrClient {
 class HttpAsrClient implements AsrClient {
   final Uri endpoint;
   final http.Client _client;
+  final Duration timeout;
 
-  HttpAsrClient({required this.endpoint, http.Client? client})
-      : _client = client ?? http.Client();
+  HttpAsrClient({
+    required this.endpoint,
+    http.Client? client,
+    this.timeout = const Duration(seconds: 45),
+  }) : _client = client ?? http.Client();
 
   @override
   Future<AsrResult> transcribe(List<int> audioBytes,
@@ -47,10 +51,13 @@ class HttpAsrClient implements AsrClient {
 
     http.Response response;
     try {
-      response = await http.Response.fromStream(await _client.send(request));
+      final streamed = await _client.send(request).timeout(timeout);
+      response = await http.Response.fromStream(streamed).timeout(timeout);
     } catch (e) {
-      // Anything the transport throws becomes one type the caller can catch.
-      // The screen turns this into Retry / Skip.
+      // Anything the transport throws becomes one type the caller can catch,
+      // including a TimeoutException — a cold-starting backend must land on
+      // the Retry/Skip screen, not hang the scoring phase forever behind a
+      // PopScope(canPop: false) with nothing persisted.
       throw AsrException('transcription request failed: $e');
     }
 

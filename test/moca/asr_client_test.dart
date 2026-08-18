@@ -73,6 +73,29 @@ void main() {
     expect(() => client.transcribe([1]), throwsA(isA<AsrException>()));
   });
 
+  // A cold-starting backend must not hang the app forever behind the
+  // scoring screen's PopScope(canPop: false). An injected short timeout
+  // stands in for the real 45s default so the test itself stays fast.
+  test('throws an AsrException when the request exceeds the timeout',
+      () async {
+    final mock = MockClient((request) async {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      return http.Response(
+        jsonEncode({'text': 'too late'}),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    });
+
+    final client = HttpAsrClient(
+      endpoint: Uri.parse('https://example.test/transcribe'),
+      client: mock,
+      timeout: const Duration(milliseconds: 50),
+    );
+
+    expect(() => client.transcribe([1]), throwsA(isA<AsrException>()));
+  });
+
   test('throws when the network fails', () async {
     final mock = MockClient((request) async => throw const SocketishError());
 
