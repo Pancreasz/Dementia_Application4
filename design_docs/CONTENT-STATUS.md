@@ -78,6 +78,44 @@ means separating "retry transcription" from "retry administration".
 settings screen the `TODO` there describes, or two of Orientation's six
 points are wrong for every patient.
 
+**e. Nothing is persisted.** All scores live in module-level globals in
+`lib/pages/score.dart` (`animalScore`, `larkScore`, `clockScore`,
+`totalScore`, `attentionScore`, `reorderScore`, `correctOrder`,
+`voiceOutcomes`). An app kill, OS process kill, or crash loses the entire
+session — including the five pre-existing subtests — with no trace. For a
+screening instrument administered once per patient this is the
+highest-consequence property of the app.
+
+**f. The web build compiles but the voice chain does not run there.**
+`DeviceVoiceRecorder.start()` (`lib/moca/audio_recorder.dart:27`) calls
+`getTemporaryDirectory()` unconditionally, and `path_provider` has no web
+implementation (`pubspec.lock` has `record_web` and `audioplayers_web` but
+no `path_provider_web`). On web every voice subtest throws
+`MissingPluginException`, is skipped, and therefore **no category is ever
+assigned**. Anyone regenerating `docs/` via `flutter build web -o docs`
+must guard that call behind `kIsWeb` first, or state that web is
+legacy-only.
+
+**g. `transcript` and `detail` on `SubtestOutcome` are written but never
+read** — no consumer anywhere in `lib/` outside `subtest_outcome.dart`
+itself. The design justifies shipping two unvalidated thresholds
+(Sentence Repetition's 0.9 similarity, Verbal Fluency's segment count) by
+saying the transcript is "stored for review". There is no review surface:
+the data dies with the process. Either build one, or treat those
+thresholds as unvalidatable in the field.
+
+**h. `SessionConfig.place`/`.province` cannot be injected.**
+`lib/scoring/score_item.dart` reads the statics directly
+(`SessionConfig.place`, `SessionConfig.province`), so the values cannot be
+overridden per session even in a test. Whoever builds the settings screen
+must change `scoreItem`'s signature, not just `session_config.dart`.
+
+**i. The Orientation date bug fixed in this branch also exists upstream**
+in the reference project at `ad_hw/src/main/scoring/orientation.js`
+(`date: String(referenceDate.getDate())` with the same unbounded
+`keywordMatch`). Port the fix there, and re-examine any Orientation
+scores already collected from that app.
+
 ## Not yet verified by a human
 
 `design_docs/superpowers/plans/2026-08-17-voice-subtests-verification.md`
