@@ -298,6 +298,28 @@ void main() {
       expect(controller.outcome!.maxScore, 1);
     });
 
+    // Mirrors the voice-path safety net: if no digit audio can play, the
+    // patient hears nothing and taps nothing, and scoring must not record a
+    // real 0/1 for a task never administered.
+    testWidgets('skips vigilance when a digit asset is missing', (tester) async {
+      final controller = build(
+        spec('vigilance'),
+        missingAssets: {'assets/moca/audio/digit-1.wav'},
+      );
+
+      final begun = controller.begin();
+      // Enough pumped time for the full 29-digit sequence to run to
+      // completion if the missing-asset check were not in place, so this
+      // test distinguishes "skipped immediately" from "hung waiting for a
+      // digit sequence that never got scheduled".
+      await tester.pump(const Duration(milliseconds: 32000));
+      await begun;
+
+      expect(controller.phase, SessionPhase.done);
+      expect(controller.outcome!.skipped, isTrue);
+      expect(controller.outcome!.maxScore, 0);
+    });
+
     // A press during the lead-in or after the last window is not an answer to
     // any digit, so it must not become one.
     testWidgets('ignores taps outside the tapping phase', (tester) async {
