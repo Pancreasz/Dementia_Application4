@@ -1,0 +1,4 @@
+# Test-only dependencies. Kept separate so a runtime install stays lean.
+-r requirements.txt
+pytest
+httpx

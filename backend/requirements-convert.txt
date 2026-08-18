@@ -1,0 +1,4 @@
+# Used ONLY by scripts/convert_model.py to convert the HuggingFace Whisper
+# checkpoint to CTranslate2 int8. Not needed to run the server.
+transformers
+torch

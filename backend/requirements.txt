@@ -1,0 +1,24 @@
+# MoCA backend runtime dependencies (Python 3.14, Windows, CPU).
+# Versions pinned to the set the handout verified as working on this machine.
+# `transformers` is NOT here: it is needed only for the one-time CT2
+# conversion (scripts/convert_model.py), never at runtime.
+
+# --- HTTP layer ---
+fastapi==0.141.1
+uvicorn==0.52.2
+python-multipart==0.0.20
+
+# --- Clock model (/upload) ---
+# cp314 wheels exist per the handout: torch 2.13.0, torchvision 0.28.0.
+torch==2.13.0
+torchvision==0.28.0
+pillow
+
+# --- ASR (/transcribe) runtime ---
+# faster-whisper runs the CtranslateT2 int8 model; av (PyAV) bundles FFmpeg
+# so no ffmpeg on PATH is required.
+faster-whisper==1.2.1
+ctranslate2==4.8.1
+av==18.1.0
+
+numpy
