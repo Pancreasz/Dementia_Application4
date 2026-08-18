@@ -6,6 +6,7 @@ import '../pages/score.dart' as globals;
 import 'asr_client.dart';
 import 'audio_player.dart';
 import 'audio_recorder.dart';
+import 'score_log.dart';
 import 'session_controller.dart';
 import 'subtest_spec.dart';
 
@@ -71,7 +72,11 @@ class _VoiceSubtestPageState extends State<VoiceSubtestPage> {
 
     if (_controller.phase == SessionPhase.done) {
       _deadline?.cancel();
-      globals.voiceOutcomes[widget.spec.id] = _controller.outcome!;
+      final outcome = _controller.outcome!;
+      // Every completed subtest reaches done exactly once, skips included, so
+      // this is the single choke point for logging a voice result.
+      logSubtestOutcome(outcome);
+      globals.voiceOutcomes[widget.spec.id] = outcome;
       Navigator.pushReplacementNamed(context, widget.nextRoute);
       return;
     }
@@ -99,19 +104,23 @@ class _VoiceSubtestPageState extends State<VoiceSubtestPage> {
           backgroundColor: const Color.fromARGB(255, 87, 152, 225),
           automaticallyImplyLeading: false,
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                widget.spec.instructionTh,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-              ..._bodyForPhase(),
-            ],
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  widget.spec.instructionTh,
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 40),
+                ..._bodyForPhase(),
+              ],
+            ),
           ),
         ),
       ),
@@ -128,6 +137,12 @@ class _VoiceSubtestPageState extends State<VoiceSubtestPage> {
           const CircularProgressIndicator(),
           const SizedBox(height: 16),
           const Text('กำลังเล่นเสียง กรุณาฟัง'),
+          const SizedBox(height: 24),
+          // Stimulus playback can hang on a device with no working audio
+          // output, and PopScope(canPop: false) blocks the back gesture, so
+          // without this the only way out is a force-quit — which loses every
+          // score in the session, nothing being persisted.
+          _skipButton(),
         ];
 
       case SessionPhase.recording:
@@ -149,6 +164,19 @@ class _VoiceSubtestPageState extends State<VoiceSubtestPage> {
           const CircularProgressIndicator(),
           const SizedBox(height: 16),
           const Text('กำลังตรวจคำตอบ'),
+          const SizedBox(height: 8),
+          // The ASR timeout is 180 s. Saying so is the difference between a
+          // slow screen and an apparently frozen one.
+          const Text(
+            'อาจใช้เวลาสูงสุดประมาณ 3 นาที',
+            style: TextStyle(fontSize: 14, color: Colors.black54),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          // Transcription can sit here for the full timeout. skip() bumps the
+          // generation counter, so the in-flight attempt is retired and cannot
+          // overwrite the skipped outcome when it eventually returns.
+          _skipButton(),
         ];
 
       case SessionPhase.error:
@@ -169,6 +197,18 @@ class _VoiceSubtestPageState extends State<VoiceSubtestPage> {
         return [const CircularProgressIndicator()];
     }
   }
+
+  /// Deliberately quieter than [_button]: on the two spinner phases this is
+  /// the only control on screen, sitting where a patient may idly press, and a
+  /// stray press abandons the subtest. It records "never administered", which
+  /// is not a score of 0 — see SubtestOutcome.skippedFor.
+  Widget _skipButton() => TextButton(
+        onPressed: () => _controller.skip(),
+        child: const Text(
+          'ข้ามข้อนี้',
+          style: TextStyle(fontSize: 16, color: Colors.black54),
+        ),
+      );
 
   Widget _button(String label, Future<void> Function() onPressed) =>
       ElevatedButton(

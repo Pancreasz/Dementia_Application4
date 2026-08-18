@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moca_main/moca/asr_client.dart';
@@ -25,12 +27,46 @@ class _FlakyOnceAsrClient implements AsrClient {
   }
 }
 
+/// Never returns, standing in for a backend that has accepted the upload and
+/// gone quiet. The real client gives up after 180 s; these tests need the state
+/// the patient is in for those three minutes, so this one never gives up at all
+/// — if the Skip button did not exist, the test would hang exactly as the app
+/// would.
+class _HangingAsrClient implements AsrClient {
+  @override
+  Future<AsrResult> transcribe(List<int> audioBytes, {String language = 'th'}) =>
+      Completer<AsrResult>().future;
+}
+
+/// The same idea for stimulus playback: a device whose audio output never
+/// reports completion leaves play()'s future pending forever.
+class _HangingAudioPlayback implements AudioPlayback {
+  bool stopped = false;
+
+  @override
+  Future<void> play(String assetPath) => Completer<void>().future;
+
+  @override
+  Future<void> stop() async {
+    stopped = true;
+  }
+
+  @override
+  Future<void> dispose() async {}
+}
+
 void main() {
   setUp(globals.voiceOutcomes.clear);
 
   SubtestSpec spec(String id) => kVoiceSubtests.firstWhere((s) => s.id == id);
 
-  Widget host(SubtestSpec s, {AsrClient? asr}) => MaterialApp(
+  Widget host(
+    SubtestSpec s, {
+    AsrClient? asr,
+    AudioPlayback? playback,
+    Future<bool> Function(String)? assetExists,
+  }) =>
+      MaterialApp(
         home: VoiceSubtestPage(
           spec: s,
           nextRoute: '/next',
@@ -38,7 +74,8 @@ void main() {
             spec: spec,
             asr: asr ?? FakeAsrClient(text: 'ยานพาหนะ'),
             recorder: FakeVoiceRecorder(),
-            playback: FakeAudioPlayback(),
+            playback: playback ?? FakeAudioPlayback(),
+            assetExists: assetExists,
           ),
         ),
         routes: {'/next': (_) => const Scaffold(body: Text('NEXT PAGE'))},
@@ -93,6 +130,112 @@ void main() {
 
     expect(find.text('NEXT PAGE'), findsOneWidget);
     expect(globals.voiceOutcomes['abstraction-1']!.skipped, isTrue);
+  });
+
+  testWidgets(
+      'a transcription that never returns can still be skipped out of',
+      (tester) async {
+    await tester.pumpWidget(host(spec('abstraction-1'), asr: _HangingAsrClient()));
+
+    await tester.tap(find.text('เริ่ม'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ส่งคำตอบ'));
+    await tester.pump();
+
+    // Stuck in the scoring phase with the request outstanding. Before the skip
+    // control existed this screen had no controls at all, and PopScope blocks
+    // the back gesture, so the only way out was a force-quit — which loses the
+    // whole session, nothing being persisted.
+    expect(find.text('กำลังตรวจคำตอบ'), findsOneWidget);
+
+    await tester.tap(find.text('ข้ามข้อนี้'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('NEXT PAGE'), findsOneWidget);
+    // Skipped, not 0: a hung backend must not assert the patient failed.
+    expect(globals.voiceOutcomes['abstraction-1']!.skipped, isTrue);
+    expect(globals.voiceOutcomes['abstraction-1']!.maxScore, 0);
+  });
+
+  testWidgets('stimulus playback that never finishes can be skipped out of',
+      (tester) async {
+    final playback = _HangingAudioPlayback();
+    await tester.pumpWidget(host(
+      spec('sentence-repetition-1'),
+      playback: playback,
+      // rootBundle asset resolution is not dependable under flutter_test, and
+      // a false negative here would skip before ever reaching the stimulus
+      // phase this test is about.
+      assetExists: (_) async => true,
+    ));
+
+    await tester.tap(find.text('เริ่ม'));
+    await tester.pump();
+
+    expect(find.text('กำลังเล่นเสียง กรุณาฟัง'), findsOneWidget);
+
+    await tester.tap(find.text('ข้ามข้อนี้'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('NEXT PAGE'), findsOneWidget);
+    expect(globals.voiceOutcomes['sentence-repetition-1']!.skipped, isTrue);
+    // The prompt is silenced on the way out rather than playing on over the
+    // next subtest.
+    expect(playback.stopped, isTrue);
+  });
+
+  testWidgets('a completed subtest prints its transcript and score',
+      (tester) async {
+    // score_log_test.dart covers the formatting; this covers the wiring, which
+    // is the half that silently stops working if _onPhaseChanged is reordered.
+    final lines = <String>[];
+    final original = debugPrint;
+    debugPrint = (String? message, {int? wrapWidth}) => lines.add(message ?? '');
+
+    try {
+      await tester.pumpWidget(
+          host(spec('abstraction-1'), asr: FakeAsrClient(text: 'ยานพาหนะ')));
+
+      await tester.tap(find.text('เริ่ม'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ส่งคำตอบ'));
+      await tester.pumpAndSettle();
+    } finally {
+      // testWidgets asserts every foundation debug variable is back to its
+      // default before tearDowns run, so this cannot be an addTearDown.
+      debugPrint = original;
+    }
+
+    final logged = lines.where((l) => l.startsWith('[MoCA]')).toList();
+    expect(logged, hasLength(1));
+    expect(logged.single, contains('abstraction-1'));
+    expect(logged.single, contains('1/1'));
+    expect(logged.single, contains('heard: "ยานพาหนะ"'));
+  });
+
+  testWidgets('a skipped subtest is logged too, and not as a zero',
+      (tester) async {
+    final lines = <String>[];
+    final original = debugPrint;
+    debugPrint = (String? message, {int? wrapWidth}) => lines.add(message ?? '');
+
+    try {
+      await tester.pumpWidget(host(spec('abstraction-1'),
+          asr: FakeAsrClient(throws: const AsrException('offline'))));
+
+      await tester.tap(find.text('เริ่ม'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ส่งคำตอบ'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ข้าม'));
+      await tester.pumpAndSettle();
+    } finally {
+      debugPrint = original;
+    }
+
+    final logged = lines.where((l) => l.startsWith('[MoCA]')).toList();
+    expect(logged, hasLength(1));
+    expect(logged.single, contains('SKIPPED'));
   });
 
   testWidgets('a tap subtest shows a tap button instead of a mic button',

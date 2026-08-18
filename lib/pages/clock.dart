@@ -5,6 +5,8 @@ import 'dart:ui' as ui;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
+import '../moca/backend_config.dart';
+import '../moca/score_log.dart';
 import 'score.dart';
 
 Future<void> saveCanvas(
@@ -26,7 +28,7 @@ Future<void> saveCanvas(
     ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     Uint8List pngBytes = byteData!.buffer.asUint8List();
 
-    var uri = Uri.parse('https://moca-flask-container.azurewebsites.net/upload');
+    var uri = Uri.parse(kClockUploadEndpoint);
     var request = http.MultipartRequest('POST', uri);
 
     request.files.add(
@@ -48,6 +50,10 @@ Future<void> saveCanvas(
         final String message = responseData['message'] ?? 'No message';
         final String filename = responseData['filename'] ?? 'Unknown file';
         final predictedScore = responseData['predicted_moca_score'];
+        // Logged before the assignment: if the server sent a double or a
+        // string, `clockScore = predictedScore` is what throws, and the log
+        // line naming the actual type is the only clue that reaches anyone.
+        logClockScore(predictedScore, filename: filename);
         clockScore = predictedScore;
 
         // ScaffoldMessenger.of(context).showSnackBar(
@@ -286,6 +292,12 @@ class LinePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // The RepaintBoundary above only captures this painter's output, not the
+    // parent Container's white BoxDecoration. Without this, toImage() yields
+    // a transparent background that PIL's convert('RGB') turns black on the
+    // backend -- a near-featureless image the clock model was never trained
+    // on, scoring 0-1 regardless of drawing quality.
+    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
     for (var line in lines) {
       final linePaint =
           Paint()

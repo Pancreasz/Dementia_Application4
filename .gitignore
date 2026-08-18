@@ -8,6 +8,7 @@
 /build/
 /windows/
 /backend/moca_densenet.pth
+/graphify-out
 .buildlog/
 .history
 .svn/

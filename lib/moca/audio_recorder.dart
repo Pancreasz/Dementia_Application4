@@ -1,7 +1,6 @@
-import 'dart:io';
-
-import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+
+import 'recording_sink.dart';
 
 /// The microphone, behind an interface so the session controller can be tested
 /// without one.
@@ -16,45 +15,44 @@ abstract class VoiceRecorder {
 
 class DeviceVoiceRecorder implements VoiceRecorder {
   final AudioRecorder _recorder = AudioRecorder();
-  String? _path;
+
+  /// Whether the take lands in a file or a Blob is the sink's business, not
+  /// this class's — see recording_sink.dart.
+  final PlatformRecordingSink _sink = PlatformRecordingSink();
 
   @override
   Future<void> start() async {
+    // On the web this is what triggers the browser's microphone prompt, and it
+    // only resolves at all in a secure context (https, or localhost during
+    // development). A page served over plain http silently has no microphone.
     if (!await _recorder.hasPermission()) {
       throw StateError('Microphone permission was refused');
     }
 
-    final dir = await getTemporaryDirectory();
-    _path =
-        '${dir.path}/moca-${DateTime.now().millisecondsSinceEpoch}.wav';
-
     // 16 kHz mono PCM: what the endpoint expects, and what the model wants.
     // Recording at a higher rate only to downsample server-side wastes upload
     // time on a connection the patient is waiting on.
+    //
+    // record_web implements the wav encoder through an AudioWorklet, so this
+    // config is honoured in the browser too rather than falling back to the
+    // MediaRecorder default of webm/opus.
     await _recorder.start(
       const RecordConfig(
         encoder: AudioEncoder.wav,
         sampleRate: 16000,
         numChannels: 1,
       ),
-      path: _path!,
+      path: await _sink.newTarget(),
     );
   }
 
   @override
   Future<List<int>> stop() async {
-    await _recorder.stop();
-    final path = _path;
-    if (path == null) return const [];
-    final file = File(path);
-    if (!await file.exists()) return const [];
-    final bytes = await file.readAsBytes();
-    // The upload is the only consumer; leaving these behind fills the temp
-    // directory over a long session.
-    try {
-      await file.delete();
-    } catch (_) {}
-    return bytes;
+    // stop()'s own return value is the handle — a file path on desktop, a
+    // blob: URL in the browser. Discarding it and reconstructing the path (as
+    // this did before) has no browser equivalent.
+    final handle = await _recorder.stop();
+    return _sink.readAndRelease(handle);
   }
 
   @override

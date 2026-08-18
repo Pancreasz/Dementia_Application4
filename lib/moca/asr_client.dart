@@ -4,10 +4,10 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 import '../scoring/asr_segment.dart';
+import 'backend_config.dart';
 
 /// Same host clock.dart already uploads to. Only the path differs.
-const String kDefaultAsrEndpoint =
-    'https://moca-flask-container.azurewebsites.net/transcribe';
+const String kDefaultAsrEndpoint = kTranscribeEndpoint;
 
 class AsrException implements Exception {
   final String message;
@@ -34,7 +34,12 @@ class HttpAsrClient implements AsrClient {
   HttpAsrClient({
     required this.endpoint,
     http.Client? client,
-    this.timeout = const Duration(seconds: 45),
+    // Whisper-medium int8 on CPU plausibly takes 30-120 s, and verbal
+    // fluency's clip is 60 seconds by clinical definition — the old 45 s
+    // budget timed out on it routinely. The ceiling still matters: past this,
+    // the backend is not coming back, and the patient belongs on the
+    // Retry/Skip screen rather than in front of a spinner forever.
+    this.timeout = const Duration(seconds: 180),
   }) : _client = client ?? http.Client();
 
   @override

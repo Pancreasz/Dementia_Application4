@@ -26,34 +26,63 @@ tests/            monkeypatched — no weights load, no downloads
 
 ## Setup from a fresh clone (Windows, Python 3.14)
 
+> **Where the venv lives on this machine.** It is at
+> `Dementia_Application4/.venv` — one level *above* `backend/` — not
+> `backend/.venv`. Every command below is written for that layout and is meant
+> to be run from `backend/`, which is why they all say `../.venv/…`. On a
+> genuinely fresh clone you may of course create `backend/.venv` instead and
+> drop the `../`.
+
 ```bash
 cd backend
-python -m venv .venv
-.venv/Scripts/python.exe -m pip install -r requirements-dev.txt
-.venv/Scripts/python.exe scripts/restore_weights.py
+python -m venv ../.venv
+../.venv/Scripts/python.exe -m pip install -r requirements-dev.txt
+../.venv/Scripts/python.exe scripts/restore_weights.py
 ```
 
 That is enough to run `/upload` and the full test suite. `/transcribe` needs the
 ASR model, which is a separate, heavier step (≈1.6 GB download → ≈800 MB int8):
 
 ```bash
-.venv/Scripts/python.exe -m pip install -r requirements-convert.txt
-.venv/Scripts/python.exe scripts/convert_model.py
+../.venv/Scripts/python.exe -m pip install -r requirements-convert.txt
+../.venv/Scripts/python.exe scripts/convert_model.py
 ```
 
 ## Run
 
 ```bash
-.venv/Scripts/python.exe -m uvicorn app:app --host 0.0.0.0 --port 8000
+../.venv/Scripts/python.exe -m uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
 Point the app at it by setting the base URL to `http://localhost:8000`
 (the Flutter side centralises this in `lib/moca/backend_config.dart`).
 
+## Browser access (CORS + Private Network Access)
+
+The Flutter **web** build calls this service from a browser, so both endpoints
+are cross-origin. Allowed origins:
+
+- `https://pancreasz.github.io` — the published GitHub Pages build
+- `http://localhost:<any>` / `http://127.0.0.1:<any>` — `flutter run -d chrome`
+
+Deliberately not `*`, and not all of `*.github.io`: `/upload` and `/transcribe`
+are unauthenticated and accept patient drawings and audio. Override without
+editing code:
+
+```bash
+set MOCA_ALLOWED_ORIGIN_REGEX=^https://your\.host$
+```
+
+`allow_private_network=True` is also set. Chrome sends an extra preflight when a
+*public* page (github.io) fetches a *private* address (localhost), and Starlette
+answers it `400 Disallowed CORS private-network` by default — which breaks the
+published site while leaving `flutter run -d chrome` working, a confusing pair of
+symptoms.
+
 ## Test
 
 ```bash
-.venv/Scripts/python.exe -m pytest -q
+../.venv/Scripts/python.exe -m pytest -q
 ```
 
 Tests monkeypatch the model loaders, so they never download the ASR model or run
@@ -67,7 +96,7 @@ training script is lost. Before trusting `/upload`, confirm it against the four
 labelled images:
 
 ```bash
-.venv/Scripts/python.exe scripts/validate_clock.py
+../.venv/Scripts/python.exe scripts/validate_clock.py
 ```
 
 It runs the three candidate transforms against `clock_0..3.png` and reports which

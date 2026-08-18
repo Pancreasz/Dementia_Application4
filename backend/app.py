@@ -16,6 +16,7 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from asr import AsrModel, LoadState
@@ -48,6 +49,54 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="MoCA backend", lifespan=lifespan)
+
+# Which browser origins may talk to this service.
+#
+# The Flutter *web* build fetches from a browser, so both endpoints are
+# cross-origin. The desktop build is not affected — it is not subject to the
+# same-origin policy — which is why none of this was needed until the app was
+# retargeted at the web.
+#
+# Two origins are in play:
+#   - http://localhost:<random>  `flutter run -d chrome` picks a fresh port each
+#                                launch, hence a regex rather than a fixed list.
+#   - https://pancreasz.github.io  the published GitHub Pages build (docs/).
+#
+# Deliberately NOT "*", and deliberately not all of *.github.io: both endpoints
+# are unauthenticated and accept patient audio and clock drawings, so any page
+# the clinician happens to have open must not be able to read a response from
+# this service.
+#
+# When the backend moves to Azure this stops mattering for the hosted case, but
+# leave it: the local backend remains how development is done. Override without
+# editing code by setting MOCA_ALLOWED_ORIGIN_REGEX.
+_DEFAULT_ORIGIN_REGEX = (
+    r"^(https://pancreasz\.github\.io|http://(localhost|127\.0\.0\.1)(:\d+)?)$"
+)
+ALLOWED_ORIGIN_REGEX = os.environ.get(
+    "MOCA_ALLOWED_ORIGIN_REGEX", _DEFAULT_ORIGIN_REGEX
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+    # Chrome's Private Network Access. A page served from a *public* origin
+    # (https://pancreasz.github.io) that fetches a *private* one (localhost)
+    # sends an extra preflight carrying
+    # `Access-Control-Request-Private-Network: true`, and Chrome drops the
+    # request unless the reply grants it. Starlette defaults this to False and
+    # answers 400 "Disallowed CORS private-network".
+    #
+    # This is exactly the published-Pages-frontend + local-backend arrangement,
+    # so without it every backend-scored subtest fails on the published site
+    # while working perfectly under `flutter run -d chrome`.
+    #
+    # Only ever granted to an origin ALLOWED_ORIGIN_REGEX already accepted —
+    # Starlette checks the origin first, so this cannot widen access on its own.
+    allow_private_network=True,
+)
 
 
 @app.post("/upload")

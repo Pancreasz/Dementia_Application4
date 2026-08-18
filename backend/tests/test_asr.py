@@ -74,7 +74,7 @@ def test_transcribe_keeps_faster_whisper_segments():
     seg2 = types.SimpleNamespace(start=0.6, end=1.1, text="สี่")
 
     class StubModel:
-        def transcribe(self, audio, language="th"):
+        def transcribe(self, audio, language="th", **kwargs):
             return iter([seg1, seg2]), types.SimpleNamespace(language=language)
 
     m = AsrModel()
@@ -86,3 +86,51 @@ def test_transcribe_keeps_faster_whisper_segments():
     assert len(result.segments) == 2
     assert isinstance(result.segments[0], Segment)
     assert result.segments[1].text == "สี่"
+
+
+def test_transcribe_pins_the_decoding_options_that_fixed_digit_span():
+    """Both options are load-bearing and neither is faster-whisper's default.
+
+    temperature: the default is a fallback ladder of six temperatures, and a
+    clip the model hallucinates on is re-decoded at every step. That alone made
+    a 7.8-second digit-span clip take 144-174 s.
+
+    repetition_penalty: without it the model emitted the digit sequence four
+    times over for a clip containing it once, and scoreDigitSpan compares for
+    exact equality — so a correct patient scored 0.
+
+    Dropping either silently restores a bug that looks like a patient deficit,
+    which is why this asserts on the call rather than on the transcript.
+    """
+    seen = {}
+
+    class RecordingModel:
+        def transcribe(self, audio, language="th", **kwargs):
+            seen.update(kwargs)
+            return iter([]), types.SimpleNamespace(language=language)
+
+    m = AsrModel(temperature=0, repetition_penalty=1.10)
+    m._model = RecordingModel()
+    m.transcribe(b"audio")
+
+    assert seen["temperature"] == 0
+    assert seen["repetition_penalty"] == 1.10
+
+
+def test_decoding_options_are_overridable_without_editing_code():
+    # The verbal-fluency risk (a Thai letter-fluency answer legitimately
+    # repeats a prefix) needs real audio to settle, so these have to be
+    # tunable in the field.
+    seen = {}
+
+    class RecordingModel:
+        def transcribe(self, audio, language="th", **kwargs):
+            seen.update(kwargs)
+            return iter([]), types.SimpleNamespace(language=language)
+
+    m = AsrModel(temperature=0.4, repetition_penalty=1.0)
+    m._model = RecordingModel()
+    m.transcribe(b"audio")
+
+    assert seen["temperature"] == 0.4
+    assert seen["repetition_penalty"] == 1.0

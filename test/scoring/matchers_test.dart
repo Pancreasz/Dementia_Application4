@@ -81,4 +81,115 @@ void main() {
       expect(extractDigitSequence('ไม่ทราบ'), '');
     });
   });
+
+  group('thaiCompoundNumberWords', () {
+    test('single digits return the bare digit word', () {
+      expect(thaiCompoundNumberWords(0), ['ศูนย์']);
+      expect(thaiCompoundNumberWords(9), ['เก้า']);
+    });
+
+    test('ten is สิบ with no unit', () {
+      expect(thaiCompoundNumberWords(10), ['สิบ']);
+    });
+
+    test('teens are สิบ + the unit digit', () {
+      expect(thaiCompoundNumberWords(19), ['สิบเก้า']);
+    });
+
+    test('eleven accepts both เอ็ด and the literal หนึ่ง form', () {
+      expect(thaiCompoundNumberWords(11), ['สิบเอ็ด', 'สิบหนึ่ง']);
+    });
+
+    test('twenty is the irregular ยี่สิบ, not สองสิบ', () {
+      expect(thaiCompoundNumberWords(20), ['ยี่สิบ']);
+      expect(thaiCompoundNumberWords(25), ['ยี่สิบห้า']);
+    });
+
+    test('thirty and thirty-one use the regular ones-word + สิบ pattern', () {
+      expect(thaiCompoundNumberWords(30), ['สามสิบ']);
+      expect(thaiCompoundNumberWords(31), ['สามสิบเอ็ด', 'สามสิบหนึ่ง']);
+    });
+  });
+
+  group('thaiCompoundNumberStated', () {
+    test('matches a teen number spoken as one compound word', () {
+      expect(thaiCompoundNumberStated(normalizeText('วันที่ สิบเก้า'), 19),
+          isTrue);
+    });
+
+    test('tolerates a stray ASR space inside the compound word', () {
+      expect(
+          thaiCompoundNumberStated(normalizeText('วันที่ สิบ เก้า'), 19),
+          isTrue);
+    });
+
+    test('does not match a different number', () {
+      expect(thaiCompoundNumberStated(normalizeText('วันที่ สิบแปด'), 19),
+          isFalse);
+    });
+
+    // Regression coverage for a real collision: the Buddhist Era year is
+    // often read as one compound number ("2569" -> "...หกสิบเก้า", sixty-
+    // nine), and "สิบเก้า" (nineteen) sits inside "หกสิบเก้า" as a literal
+    // substring. A date of 19 must not be credited off the year's own text.
+    test('a teen embedded in a bigger decade number does not count as stated',
+        () {
+      expect(
+          thaiCompoundNumberStated(
+              normalizeText('ปี สองพันห้าร้อยหกสิบเก้า'), 19),
+          isFalse);
+    });
+
+    test('the same teen elsewhere in the transcript still counts', () {
+      expect(
+          thaiCompoundNumberStated(
+              normalizeText('ปี สองพันห้าร้อยหกสิบเก้า วันที่ สิบเก้า'), 19),
+          isTrue);
+    });
+  });
+
+  group('thaiDigitByDigitWords', () {
+    test('reads each digit as its own word', () {
+      expect(thaiDigitByDigitWords('2569'), 'สองห้าหกเก้า');
+    });
+  });
+
+  group('thaiFullNumberWordVariants', () {
+    test('a 4-digit year as one compound number word', () {
+      expect(thaiFullNumberWordVariants(2569),
+          containsAll(['สองพันห้าร้อยหกสิบเก้า', 'สองห้าหกเก้า']));
+    });
+
+    test('a compound reading ending in เอ็ด also accepts the หนึ่ง variant',
+        () {
+      expect(thaiFullNumberWordVariants(2511),
+          containsAll(['สองพันห้าร้อยสิบเอ็ด', 'สองพันห้าร้อยสิบหนึ่ง']));
+    });
+
+    test('the tens-place 2 irregular ยี่ is used, not สอง', () {
+      expect(thaiFullNumberWordVariants(2521),
+          contains('สองพันห้าร้อยยี่สิบเอ็ด'));
+    });
+  });
+
+  group('thaiFullNumberStated', () {
+    test('matches a year spoken as one compound number word', () {
+      expect(
+          thaiFullNumberStated(
+              normalizeText('ปี สองพันห้าร้อยหกสิบเก้า'), 2569),
+          isTrue);
+    });
+
+    test('matches a year spoken digit-by-digit', () {
+      expect(thaiFullNumberStated(normalizeText('ปี สอง ห้า หก เก้า'), 2569),
+          isTrue);
+    });
+
+    test('does not match a different year', () {
+      expect(
+          thaiFullNumberStated(
+              normalizeText('ปี สองพันห้าร้อยหกสิบแปด'), 2569),
+          isFalse);
+    });
+  });
 }

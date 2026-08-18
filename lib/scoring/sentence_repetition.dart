@@ -50,13 +50,26 @@ int _levenshtein(String a, String b) {
   return previous[b.length];
 }
 
+/// Thai does not space between words, so where the recognizer puts spaces is
+/// arbitrary — the same utterance comes back as "…ช่วยงานวันนี้" one run and
+/// "…ช่วยงาน วันนี้" the next, and changing the decoding options changed it for
+/// every clip at once. Each stray space is an edit against a ~50-character
+/// sentence, so two of them move the similarity by 0.04 with only 0.10 of
+/// headroom to begin with: whitespace alone could decide the point.
+///
+/// Removed rather than collapsed. `normalizeText` collapses runs to a single
+/// space, which is the right thing for languages where a space is a word
+/// boundary and the wrong thing here.
+String _forComparison(String text) =>
+    normalizeText(text).replaceAll(RegExp(r'\s+'), '');
+
 SubtestOutcome scoreSentenceRepetition(
   String subtestId,
   String transcript,
   String expectedSentence,
 ) {
   final similarity =
-      similarityRatio(normalizeText(transcript), normalizeText(expectedSentence));
+      similarityRatio(_forComparison(transcript), _forComparison(expectedSentence));
 
   return SubtestOutcome(
     subtestId: subtestId,

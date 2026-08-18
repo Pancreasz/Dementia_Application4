@@ -263,23 +263,23 @@ proves too slow: a smaller Thai model, GPU hosting, or streaming partial results
 
 Machine is Windows. **Python 3.14.6.**
 
-An existing virtualenv at `ad_hw/sidecar/.venv` already contains much of what you
-need. Reuse it or build a fresh one.
+**The venv is at `Dementia_Application4/.venv`** — one level above `backend/`,
+not `backend/.venv`. README commands are written as `../.venv/…` and run from
+`backend/`. As of 2026-08-18 it has the full runtime + dev + conversion set
+installed and `pytest -q` is green (26 passed):
 
-| Already installed | Version |
+| Installed | Version |
 |---|---|
-| `ctranslate2` | 4.8.1 |
-| `faster_whisper` | 1.2.1 |
+| `torch` / `torchvision` | 2.13.0 / 0.28.0 |
+| `faster-whisper` / `ctranslate2` | 1.2.1 / 4.8.1 |
 | `av` (PyAV, bundles FFmpeg) | 18.1.0 |
 | `fastapi` / `uvicorn` | 0.141.1 / 0.52.2 |
-| `onnxruntime`, `tokenizers`, `huggingface_hub`, `numpy` | — |
+| `pillow` / `numpy` / `python-multipart` | 12.3.0 / — / 0.0.20 |
+| `transformers` (conversion only) | 5.15.0 |
 
-| Still needed | Note |
-|---|---|
-| `torch`, `torchvision` | For the clock model. **cp314 wheels exist** (torch 2.13.0, torchvision 0.28.0), so Python 3.14 is fine. |
-| `pillow` | Image loading. cp314 wheels exist. |
-| `transformers` | Conversion step only, not runtime. Pure Python. |
-| `python-multipart` | FastAPI multipart form parsing. |
+A second virtualenv exists at `ad_hw/sidecar/.venv` (the reference prototype's,
+also Python 3.14.6). It has the ASR stack but no torch. **Not used by this
+backend** — do not mix them.
 
 **Framework: FastAPI, not Flask.** The original service's name is the only trace
 of Flask left, nothing depends on it, `fastapi` and `uvicorn` are already

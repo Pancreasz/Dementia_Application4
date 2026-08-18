@@ -62,4 +62,74 @@ void main() {
     expect(outcome.score, 0);
     expect(outcome.detail['distinctCount'], 0);
   });
+
+  group('regressions from a real session (2026-08-18)', () {
+    // The recognizer returned all fourteen words as ONE segment and the
+    // patient scored 0/1 with distinctCount: 0, having answered well. Two
+    // independent causes, one test each below, plus the real line.
+    const realAnswer =
+        'ไก่ กอง กางเกง กุ้ง แก้ว กระหนก กระจู กระเจี้ยว กระจอก กาก กรวย กระดาษ กระดอก กระดูก';
+
+    test('a whole answer arriving as one segment is still counted word by word',
+        () {
+      final outcome = scoreVerbalFluency(
+        [const AsrSegment(start: 0, end: 60, text: realAnswer)],
+        initialLetter: 'ก',
+      );
+
+      // 14 spoken, all beginning with the ก sound, all distinct.
+      expect(outcome.detail['distinctCount'], 14);
+      expect(outcome.score, 1);
+    });
+
+    test('a leading vowel does not hide the initial consonant', () {
+      // ไก่ is written ไ-ก-่, so startsWith('ก') is false while the word
+      // plainly begins with the ก sound. Same for แก้ว, เก้าอี้, โกรธ, ใกล้.
+      final outcome = scoreVerbalFluency(
+        [
+          for (final w in ['ไก่', 'แก้ว', 'เก้าอี้', 'โกรธ', 'ใกล้'])
+            AsrSegment(start: 0, end: 1, text: w),
+        ],
+        initialLetter: 'ก',
+      );
+
+      expect(outcome.detail['distinctCount'], 5);
+      expect(outcome.detail['rejectedWrongLetter'], isNull);
+    });
+
+    test('still rejects words that genuinely start with another letter', () {
+      // The leading-vowel rule must not become "accept anything": เสือ is
+      // เ-ส-ือ, whose initial consonant is ส, not ก.
+      final outcome = scoreVerbalFluency(
+        [
+          for (final w in ['ไก่', 'เสือ', 'กบ', 'แมว'])
+            AsrSegment(start: 0, end: 1, text: w),
+        ],
+        initialLetter: 'ก',
+      );
+
+      expect(outcome.detail['distinctCount'], 2);
+      expect(outcome.detail['rejectedWrongLetter'], ['เสือ', 'แมว']);
+    });
+
+    test('trailing punctuation does not split one word into two', () {
+      final outcome = scoreVerbalFluency(
+        [const AsrSegment(start: 0, end: 2, text: 'กา กา. กา')],
+        initialLetter: 'ก',
+      );
+      expect(outcome.detail['distinctCount'], 1);
+    });
+
+    test('run-on output with no spaces is still under-counted (known limit)', () {
+      // Documents the remaining weakness rather than claiming it is solved:
+      // with no spaces there is nothing to split on without a Thai word
+      // segmenter, so this counts 1 rather than 3. It fails a good patient,
+      // which is the safer direction, but it is not safe.
+      final outcome = scoreVerbalFluency(
+        [const AsrSegment(start: 0, end: 5, text: 'กากองกางเกง')],
+        initialLetter: 'ก',
+      );
+      expect(outcome.detail['distinctCount'], 1);
+    });
+  });
 }

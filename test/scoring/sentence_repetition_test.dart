@@ -68,4 +68,46 @@ void main() {
       expect(outcome.detail['expected'], sentence);
     });
   });
+
+  group('recognizer whitespace (regression, 2026-08-18)', () {
+    // Changing the ASR decoding options to fix digit span changed where the
+    // recognizer put spaces in EVERY clip: "…ช่วยงานวันนี้" became
+    // "…ช่วยงาน วันนี้". Each stray space is an edit against a ~50-character
+    // sentence, and the threshold only has 0.10 of headroom.
+    const expected = 'แมวมักจะซ่อนตัวอยู่หลังเก้าอี้เมื่อมีหมาอยู่ในห้อง';
+
+    test('spacing the recognizer invented does not cost the point', () {
+      final spaced = scoreSentenceRepetition(
+        'sentence-repetition-2',
+        'แมวมักจะซ่อนตัวอยู่หลังเก้าอี้ เมื่อมีหมา อยู่ในห้อง',
+        expected,
+      );
+
+      expect(spaced.detail['similarity'], 1.0);
+      expect(spaced.score, 1);
+    });
+
+    test('a run-on answer and a spaced one score identically', () {
+      double sim(String t) =>
+          scoreSentenceRepetition('x', t, expected).detail['similarity']
+              as double;
+
+      expect(sim('แมวมักจะซ่อนตัวอยู่หลังเก้าอี้เมื่อมีหมาอยู่ในห้อง'),
+          sim('แมว มักจะ ซ่อนตัว อยู่หลัง เก้าอี้ เมื่อ มีหมา อยู่ในห้อง'));
+    });
+
+    test('a genuinely missing word still costs similarity', () {
+      // The guard against the above becoming "ignore everything": dropping จะ
+      // must still register, since that is the real sentence-2 discrepancy.
+      final missing = scoreSentenceRepetition(
+        'sentence-repetition-2',
+        'แมวมักซ่อนตัวอยู่หลังเก้าอี้เมื่อมีหมาอยู่ในห้อง',
+        expected,
+      );
+
+      expect(missing.detail['similarity'] as double, lessThan(1.0));
+      // Still above threshold — it is one short word — but visibly not perfect.
+      expect(missing.detail['similarity'] as double, greaterThan(0.9));
+    });
+  });
 }
