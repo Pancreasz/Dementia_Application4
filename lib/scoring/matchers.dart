@@ -1,6 +1,7 @@
 /// Text matching shared by every voice scorer.
 ///
 /// Ported from ad_hw/src/main/scoring/matchers.js.
+library;
 
 String normalizeText(String text) =>
     text.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
