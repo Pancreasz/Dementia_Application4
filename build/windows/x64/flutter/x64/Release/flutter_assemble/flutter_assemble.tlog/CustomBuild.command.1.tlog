@@ -1,0 +1,28 @@
+^D:\MOCA_AD\DEMENTIA_APPLICATION4\BUILD\WINDOWS\X64\CMAKEFILES\51F470F5A4222E777D6B9D5DBC5CA1AB\FLUTTER_WINDOWS.DLL.RULE
+setlocal
+"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -E env FLUTTER_ROOT=C:\Users\pumasin.p\dev\flutter PROJECT_DIR=D:\moca_ad\Dementia_Application4 FLUTTER_ROOT=C:\Users\pumasin.p\dev\flutter FLUTTER_EPHEMERAL_DIR=D:\moca_ad\Dementia_Application4\windows\flutter\ephemeral PROJECT_DIR=D:\moca_ad\Dementia_Application4 FLUTTER_TARGET=lib\main.dart DART_OBFUSCATION=false TRACK_WIDGET_CREATION=true TREE_SHAKE_ICONS=true PACKAGE_CONFIG=D:\moca_ad\Dementia_Application4\.dart_tool\package_config.json C:/Users/pumasin.p/dev/flutter/packages/flutter_tools/bin/tool_backend.bat windows-x64 Release
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^D:\MOCA_AD\DEMENTIA_APPLICATION4\BUILD\WINDOWS\X64\CMAKEFILES\0E59A54EB3D60A9C5784F9A9B4B57FE2\FLUTTER_ASSEMBLE.RULE
+setlocal
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
+^D:\MOCA_AD\DEMENTIA_APPLICATION4\WINDOWS\FLUTTER\CMAKELISTS.TXT
+setlocal
+"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SD:/moca_ad/Dementia_Application4/windows -BD:/moca_ad/Dementia_Application4/build/windows/x64 --check-stamp-file D:/moca_ad/Dementia_Application4/build/windows/x64/flutter/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

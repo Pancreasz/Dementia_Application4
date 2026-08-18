@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\moca_ad\Dementia_Application4\build\windows\x64\_deps\nuget-subbuild\CMakeFiles\1eac6b4164e208d35f94546996f93c87\nuget-populate-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\moca_ad\Dementia_Application4\build\windows\x64\_deps\nuget-subbuild\CMakeFiles\1eac6b4164e208d35f94546996f93c87\nuget-populate-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\moca_ad\Dementia_Application4\build\windows\x64\_deps\nuget-subbuild\CMakeFiles\1eac6b4164e208d35f94546996f93c87\nuget-populate-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\moca_ad\Dementia_Application4\build\windows\x64\_deps\nuget-subbuild\CMakeFiles\1eac6b4164e208d35f94546996f93c87\nuget-populate-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\moca_ad\Dementia_Application4\build\windows\x64\_deps\nuget-subbuild\CMakeFiles\1eac6b4164e208d35f94546996f93c87\nuget-populate-copyfile.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\moca_ad\Dementia_Application4\build\windows\x64\_deps\nuget-subbuild\CMakeFiles\1eac6b4164e208d35f94546996f93c87\nuget-populate-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\moca_ad\Dementia_Application4\build\windows\x64\_deps\nuget-subbuild\CMakeFiles\1eac6b4164e208d35f94546996f93c87\nuget-populate-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\moca_ad\Dementia_Application4\build\windows\x64\_deps\nuget-subbuild\CMakeFiles\1eac6b4164e208d35f94546996f93c87\nuget-populate-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\moca_ad\Dementia_Application4\build\windows\x64\_deps\nuget-subbuild\CMakeFiles\1eac6b4164e208d35f94546996f93c87\nuget-populate-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\moca_ad\Dementia_Application4\build\windows\x64\_deps\nuget-subbuild\CMakeFiles\1c864fa2cfab246655fdc01522df372a\nuget-populate-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\moca_ad\Dementia_Application4\build\windows\x64\_deps\nuget-subbuild\CMakeFiles\ef67064e2f82b2d534cb7981f33da3f6\nuget-populate.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\moca_ad\Dementia_Application4\build\windows\x64\_deps\nuget-subbuild\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="D:\moca_ad\Dementia_Application4\build\windows\x64\_deps\nuget-subbuild\CMakeFiles\nuget-populate" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{4B3A4395-5892-340E-B16A-7F5FAA49F8A2}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

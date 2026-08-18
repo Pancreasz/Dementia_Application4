@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Solution>
+	<Configurations>
+		<BuildType Name="Debug"/>
+		<BuildType Name="Profile"/>
+		<BuildType Name="Release"/>
+		<Platform Name="x64"/>
+	</Configurations>
+	<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="a1457c60-f5e8-3d42-b0d5-78b88071f8b4" DefaultStartup="true">
+		<BuildDependency Project="../ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="moca_main.vcxproj"/>
+	</Project>
+	<Project Path="INSTALL.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="ee2c1eb1-03ed-36f1-9e3a-e89728c6fb55">
+		<BuildDependency Project="ALL_BUILD.vcxproj"/>
+		<BuildDependency Project="../ZERO_CHECK.vcxproj"/>
+		<Build Solution="Debug|*" Project="false"/>
+		<Build Solution="Profile|*" Project="false"/>
+		<Build Solution="Release|*" Project="false"/>
+	</Project>
+	<Project Path="../ZERO_CHECK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="cc91723d-e6d8-3d68-8629-a1f12985e032"/>
+	<Project Path="../plugins/audioplayers_windows/audioplayers_windows_plugin.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="012d3b74-99e2-37f8-b5a4-4e3a00fea84a">
+		<BuildDependency Project="../ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="../flutter/flutter_assemble.vcxproj"/>
+		<BuildDependency Project="../flutter/flutter_wrapper_plugin.vcxproj"/>
+	</Project>
+	<Project Path="../flutter/flutter_assemble.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="d05edd64-c988-3154-b7ad-2e89ed25e3b8">
+		<BuildDependency Project="../ZERO_CHECK.vcxproj"/>
+	</Project>
+	<Project Path="../flutter/flutter_wrapper_app.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="171b0496-ff15-33d9-b05b-90077476f29b">
+		<BuildDependency Project="../ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="../flutter/flutter_assemble.vcxproj"/>
+	</Project>
+	<Project Path="../flutter/flutter_wrapper_plugin.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="0fbd2b60-1bd9-35ca-b3f5-1f4056f65492">
+		<BuildDependency Project="../ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="../flutter/flutter_assemble.vcxproj"/>
+	</Project>
+	<Project Path="moca_main.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="78f504e4-0680-3830-833b-1a94adeec9a8">
+		<BuildDependency Project="../ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="../plugins/audioplayers_windows/audioplayers_windows_plugin.vcxproj"/>
+		<BuildDependency Project="../flutter/flutter_assemble.vcxproj"/>
+		<BuildDependency Project="../flutter/flutter_wrapper_app.vcxproj"/>
+		<BuildDependency Project="../plugins/permission_handler_windows/permission_handler_windows_plugin.vcxproj"/>
+		<BuildDependency Project="../plugins/record_windows/record_windows_plugin.vcxproj"/>
+	</Project>
+	<Project Path="../plugins/permission_handler_windows/permission_handler_windows_plugin.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="9d4eb749-f43c-33e9-a1f8-3f537cc7d000">
+		<BuildDependency Project="../ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="../flutter/flutter_assemble.vcxproj"/>
+		<BuildDependency Project="../flutter/flutter_wrapper_plugin.vcxproj"/>
+	</Project>
+	<Project Path="../plugins/record_windows/record_windows_plugin.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="8d462b16-a149-30f0-8b47-06c155148665">
+		<BuildDependency Project="../ZERO_CHECK.vcxproj"/>
+		<BuildDependency Project="../flutter/flutter_assemble.vcxproj"/>
+		<BuildDependency Project="../flutter/flutter_wrapper_plugin.vcxproj"/>
+	</Project>
+</Solution>

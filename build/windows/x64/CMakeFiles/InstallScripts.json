@@ -1,0 +1,12 @@
+{
+	"InstallScripts" : 
+	[
+		"D:/moca_ad/Dementia_Application4/build/windows/x64/cmake_install.cmake",
+		"D:/moca_ad/Dementia_Application4/build/windows/x64/flutter/cmake_install.cmake",
+		"D:/moca_ad/Dementia_Application4/build/windows/x64/runner/cmake_install.cmake",
+		"D:/moca_ad/Dementia_Application4/build/windows/x64/plugins/audioplayers_windows/cmake_install.cmake",
+		"D:/moca_ad/Dementia_Application4/build/windows/x64/plugins/permission_handler_windows/cmake_install.cmake",
+		"D:/moca_ad/Dementia_Application4/build/windows/x64/plugins/record_windows/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

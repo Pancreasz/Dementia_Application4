@@ -1,0 +1,4 @@
+# CMake generation dependency list for this directory.
+C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-4.3/Modules/ExternalProject/shared_internal_commands.cmake
+C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/share/cmake-4.3/Modules/FetchContent.cmake
+D:/moca_ad/Dementia_Application4/windows/flutter/ephemeral/.plugin_symlinks/permission_handler_windows/windows/CMakeLists.txt
