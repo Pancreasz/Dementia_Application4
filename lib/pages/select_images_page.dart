@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../moca/app_language.dart';
 import 'score.dart' as globals;
 
 class SelectImagesPage extends StatefulWidget {
@@ -31,29 +32,36 @@ class _SelectImagesPageState extends State<SelectImagesPage> {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Center(child: Text('คำแนะนำในการทำแบบทดสอบ')),
+          title: Center(child: Text(t('คำแนะนำในการทำแบบทดสอบ', 'Instructions for this test'))),
           content: SingleChildScrollView(
             child: ListBody(
               children: <Widget>[
                 Text(
-                  '1. เลือกรูปภาพ 5 รูปจากทั้งหมด 10 รูป',
+                  t('1. เลือกรูปภาพ 5 รูปจากทั้งหมด 10 รูป', '1. Choose 5 pictures out of the 10 shown'),
                   textAlign: TextAlign.center,
                 ),
                 SizedBox(height: 10),
                 Text(
-                  '2. เรียงรูปภาพแบบใดก็ได้ในช่องที่เตรียมไว้',
+                  t('2. เรียงรูปภาพแบบใดก็ได้ในช่องที่เตรียมไว้', '2. Place them in the boxes provided, in any order'),
                   textAlign: TextAlign.center,
                 ),
                 SizedBox(height: 10),
-                Text('3. จำรูปภาพและลำดับให้ดี', textAlign: TextAlign.center),
+                Text(t('3. จำรูปภาพและลำดับให้ดี', '3. Remember the pictures and their order well'),
+                    textAlign: TextAlign.center),
                 SizedBox(height: 10),
                 Text(
-                  '4. ในแบบทดสอบภายหลัง ให้เรียงรูปภาพให้ตรงกับที่คุณจำไว้',
+                  t(
+                    '4. ในแบบทดสอบภายหลัง ให้เรียงรูปภาพให้ตรงกับที่คุณจำไว้',
+                    '4. In a later test, you will arrange the pictures to match what you remembered',
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 SizedBox(height: 20),
                 Text(
-                  'คุณจะได้คะแนนตามจำนวนรูปภาพที่เรียงถูกต้อง! \n ถ้าหากช่องสี่เหลี่ยมไม่ครบกรุณาเอียงจอเป็นแนวนอน',
+                  t(
+                    'คุณจะได้คะแนนตามจำนวนรูปภาพที่เรียงถูกต้อง! \n ถ้าหากช่องสี่เหลี่ยมไม่ครบกรุณาเอียงจอเป็นแนวนอน',
+                    'You will be scored on how many pictures you place correctly! \n If the boxes don\'t all fit, please rotate your screen to landscape',
+                  ),
                   style: TextStyle(fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
@@ -63,7 +71,7 @@ class _SelectImagesPageState extends State<SelectImagesPage> {
           actions: <Widget>[
             Center(
               child: ElevatedButton(
-                child: Text('เริ่มแบบทดสอบ'),
+                child: Text(t('เริ่มแบบทดสอบ', 'Start test')),
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
@@ -104,7 +112,8 @@ class _SelectImagesPageState extends State<SelectImagesPage> {
       appBar: AppBar(
         title: Center(
           child: Text(
-            'ถ้าหากช่องสี่เหลี่ยมไม่ครบ 5 ช่องกรุณาเอียงจอเป็นแนวนอน', 
+            t('ถ้าหากช่องสี่เหลี่ยมไม่ครบ 5 ช่องกรุณาเอียงจอเป็นแนวนอน',
+                'If fewer than 5 boxes are shown, please rotate your screen to landscape'),
             style: TextStyle(fontSize: 16),
             textAlign: TextAlign.center,
           ),
@@ -119,7 +128,7 @@ class _SelectImagesPageState extends State<SelectImagesPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'รูปภาพทั้งหมด:',
+                t('รูปภาพทั้งหมด:', 'All pictures:'),
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 10),
@@ -148,7 +157,7 @@ class _SelectImagesPageState extends State<SelectImagesPage> {
               ),
               SizedBox(height: 20),
               Text(
-                'ลากรูปภาพ 5 รูปมาวางที่นี่:',
+                t('ลากรูปภาพ 5 รูปมาวางที่นี่:', 'Drag 5 pictures here:'),
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 10),
@@ -234,7 +243,7 @@ class _SelectImagesPageState extends State<SelectImagesPage> {
                           Navigator.pushNamed(context, '/animal');
                         }
                       : null,
-                  child: Text('ต่อไป'),
+                  child: Text(t('ต่อไป', 'Next')),
                 ),
               ),
             ],

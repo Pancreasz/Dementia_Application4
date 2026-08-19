@@ -69,6 +69,38 @@ void main() {
     });
   });
 
+  group('spelled-out numbers vs digits (regression, English mode)', () {
+    // The real sentence-2 in English mode contains "thirty-three" as a
+    // written number, but Whisper transcribed it as "33" — a mismatch that
+    // alone dropped the point despite an otherwise-correct repetition.
+    const expected = 'How can a clam cram in a clean cream can';
+    const expectedSentence2 = 'The thirty-three thieves thought that they thrilled the throne.';
+
+    test('a digit rendering of a spelled-out number does not cost the point', () {
+      final outcome = scoreSentenceRepetition(
+        'sentence-repetition-2',
+        'The 33 thieves thought that they thrilled the throne.',
+        expectedSentence2,
+      );
+      expect(outcome.detail['similarity'], 1.0);
+      expect(outcome.score, 1);
+    });
+
+    test('an identical repetition still scores 1 when it contains no numbers', () {
+      final outcome = scoreSentenceRepetition('sentence-repetition-1', expected, expected);
+      expect(outcome.score, 1);
+    });
+
+    test('a genuinely wrong number still costs similarity', () {
+      final outcome = scoreSentenceRepetition(
+        'sentence-repetition-2',
+        'The thirty-four thieves thought that they thrilled the throne.',
+        expectedSentence2,
+      );
+      expect(outcome.detail['similarity'], lessThan(1.0));
+    });
+  });
+
   group('recognizer whitespace (regression, 2026-08-18)', () {
     // Changing the ASR decoding options to fix digit span changed where the
     // recognizer put spaces in EVERY clip: "…ช่วยงานวันนี้" became

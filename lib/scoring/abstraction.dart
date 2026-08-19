@@ -1,3 +1,4 @@
+import '../moca/app_language.dart';
 import 'matchers.dart';
 import 'subtest_outcome.dart';
 
@@ -10,7 +11,7 @@ import 'subtest_outcome.dart';
 /// correct abstract answer carrying a concrete detail, and a reject-list would
 /// strip a point the patient earned. The accepted terms cannot make that
 /// mistake, because the answers MoCA rejects share no vocabulary with them.
-const _acceptedTerms = <String, List<String>>{
+const _acceptedTermsTh = <String, List<String>>{
   // รถไฟ (train) and จักรยาน (bicycle). The instrument allows a travel answer
   // as well as the category noun, so "ใช้เดินทาง" scores.
   'abstraction-1': ['ยานพาหนะ', 'พาหนะ', 'ขนส่ง', 'เดินทาง'],
@@ -21,8 +22,20 @@ const _acceptedTerms = <String, List<String>>{
   'abstraction-2': ['เครื่องมือวัด', 'เครื่องวัด', 'การวัด', 'วัด'],
 };
 
-SubtestOutcome scoreAbstraction(String subtestId, String transcript) {
-  final terms = _acceptedTerms[subtestId];
+/// English equivalents of the Thai terms above: train/bicycle -> vehicle
+/// (transportation), watch/ruler -> measuring instrument (measurement).
+const _acceptedTermsEn = <String, List<String>>{
+  'abstraction-1': ['vehicle', 'vehicles', 'transportation', 'transport'],
+  'abstraction-2': ['measuring instrument', 'measuring device', 'measurement', 'measure'],
+};
+
+SubtestOutcome scoreAbstraction(
+  String subtestId,
+  String transcript, {
+  Language language = Language.th,
+}) {
+  final terms =
+      (language == Language.en ? _acceptedTermsEn : _acceptedTermsTh)[subtestId];
   // A typo in a subtest id would otherwise score every patient zero on an item
   // that was never really administered, and look like a clinical finding.
   if (terms == null) {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../moca/app_language.dart';
 import 'score.dart';
 
 class AttentionTestPage extends StatefulWidget {
@@ -56,7 +57,7 @@ class _AttentionTestPageState extends State<AttentionTestPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("แบบทดสอบลบเลข"),
+        title: Text(t("แบบทดสอบลบเลข", "Serial Subtraction Test")),
         backgroundColor: Color.fromARGB(255, 87, 152, 225),
         automaticallyImplyLeading: false,
       ),
@@ -64,8 +65,11 @@ class _AttentionTestPageState extends State<AttentionTestPage> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            const Text(
-              "ให้ทำการลบเลขจาก 100 ครั้งล่ะ 7 เป็นจำนวน 5 ครั้ง แต่ล่ะครั้งให้นำคำตอบใส่ลงในช่องตามลำดับ",
+            Text(
+              t(
+                "ให้ทำการลบเลขจาก 100 ครั้งล่ะ 7 เป็นจำนวน 5 ครั้ง แต่ล่ะครั้งให้นำคำตอบใส่ลงในช่องตามลำดับ",
+                "Starting from 100, subtract 7 five times in a row, entering each answer in order.",
+              ),
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
@@ -103,7 +107,7 @@ class _AttentionTestPageState extends State<AttentionTestPage> {
                 _handleSubmit();
                 Navigator.pushNamed(context, '/sentence-repetition-1');
               },
-              child: const Text("ส่งคำตอบ"),
+              child: Text(t("ส่งคำตอบ", "Submit")),
             ),
           ],
         ),

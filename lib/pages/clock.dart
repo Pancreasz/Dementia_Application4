@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
+import '../moca/app_language.dart';
 import '../moca/backend_config.dart';
 import '../moca/score_log.dart';
 import 'score.dart';
@@ -109,7 +110,7 @@ class _ClockTestPageState extends State<ClockTestPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('วาดหน้าปัดนาฬิกาที่บอกเวลา 11:10 น.'),
+        title: Text(t('วาดหน้าปัดนาฬิกาที่บอกเวลา 11:10 น.', 'Draw a clock face showing the time 11:10')),
         backgroundColor: Colors.blue,
         automaticallyImplyLeading: false,
       ),
@@ -191,7 +192,7 @@ class _ClockTestPageState extends State<ClockTestPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'กล่องอุปกรณ์',
+                  t('กล่องอุปกรณ์', 'Tools'),
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 SizedBox(height: 12),
@@ -213,7 +214,7 @@ class _ClockTestPageState extends State<ClockTestPage> {
                           mini: true,
                         ),
                         SizedBox(height: 4),
-                        Text('ลบทั้งกระดาษ'),
+                        Text(t('ลบทั้งกระดาษ', 'Clear all')),
                       ],
                     ),
                     SizedBox(width: 16),
@@ -235,7 +236,7 @@ class _ClockTestPageState extends State<ClockTestPage> {
                           mini: true,
                         ),
                         SizedBox(height: 4),
-                        Text(isErasing ? 'ปากกา' : 'ยางลบ'),
+                        Text(isErasing ? t('ปากกา', 'Pen') : t('ยางลบ', 'Eraser')),
                       ],
                     ),
                     SizedBox(width: 16),
@@ -254,7 +255,7 @@ class _ClockTestPageState extends State<ClockTestPage> {
                           mini: true,
                         ),
                         SizedBox(height: 4),
-                        Text('ส่งคำตอบ'),
+                        Text(t('ส่งคำตอบ', 'Submit')),
                       ],
                     ),
                   ],

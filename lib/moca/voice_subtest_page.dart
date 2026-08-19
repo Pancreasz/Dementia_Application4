@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../pages/score.dart' as globals;
+import 'app_language.dart';
 import 'asr_client.dart';
 import 'audio_player.dart';
 import 'audio_recorder.dart';
@@ -100,7 +101,7 @@ class _VoiceSubtestPageState extends State<VoiceSubtestPage> {
       canPop: false,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.spec.section),
+          title: Text(sectionLabel(widget.spec.section)),
           backgroundColor: const Color.fromARGB(255, 87, 152, 225),
           automaticallyImplyLeading: false,
         ),
@@ -112,7 +113,7 @@ class _VoiceSubtestPageState extends State<VoiceSubtestPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  widget.spec.instructionTh,
+                  widget.spec.instruction,
                   style: const TextStyle(
                       fontSize: 20, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
@@ -130,13 +131,13 @@ class _VoiceSubtestPageState extends State<VoiceSubtestPage> {
   List<Widget> _bodyForPhase() {
     switch (_controller.phase) {
       case SessionPhase.instruction:
-        return [_button('เริ่ม', _controller.begin)];
+        return [_button(t('เริ่ม', 'Begin'), _controller.begin)];
 
       case SessionPhase.stimulus:
         return [
           const CircularProgressIndicator(),
           const SizedBox(height: 16),
-          const Text('กำลังเล่นเสียง กรุณาฟัง'),
+          Text(t('กำลังเล่นเสียง กรุณาฟัง', 'Playing audio, please listen')),
           const SizedBox(height: 24),
           // Stimulus playback can hang on a device with no working audio
           // output, and PopScope(canPop: false) blocks the back gesture, so
@@ -149,27 +150,27 @@ class _VoiceSubtestPageState extends State<VoiceSubtestPage> {
         return [
           const Icon(Icons.mic, size: 64, color: Colors.red),
           const SizedBox(height: 16),
-          const Text('กำลังบันทึกเสียง'),
+          Text(t('กำลังบันทึกเสียง', 'Recording')),
           const SizedBox(height: 24),
-          _button('ส่งคำตอบ', _controller.finishRecording),
+          _button(t('ส่งคำตอบ', 'Submit'), _controller.finishRecording),
         ];
 
       case SessionPhase.tapping:
         return [
-          _button('เคาะ', () async => _controller.recordTap()),
+          _button(t('เคาะ', 'Tap'), () async => _controller.recordTap()),
         ];
 
       case SessionPhase.scoring:
         return [
           const CircularProgressIndicator(),
           const SizedBox(height: 16),
-          const Text('กำลังตรวจคำตอบ'),
+          Text(t('กำลังตรวจคำตอบ', 'Scoring your answer')),
           const SizedBox(height: 8),
           // The ASR timeout is 180 s. Saying so is the difference between a
           // slow screen and an apparently frozen one.
-          const Text(
-            'อาจใช้เวลาสูงสุดประมาณ 3 นาที',
-            style: TextStyle(fontSize: 14, color: Colors.black54),
+          Text(
+            t('อาจใช้เวลาสูงสุดประมาณ 3 นาที', 'May take up to about 3 minutes'),
+            style: const TextStyle(fontSize: 14, color: Colors.black54),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -183,14 +184,14 @@ class _VoiceSubtestPageState extends State<VoiceSubtestPage> {
         return [
           const Icon(Icons.error_outline, size: 48, color: Colors.orange),
           const SizedBox(height: 12),
-          Text('เกิดข้อผิดพลาด: ${_controller.error ?? ''}',
+          Text('${t('เกิดข้อผิดพลาด', 'An error occurred')}: ${_controller.error ?? ''}',
               textAlign: TextAlign.center),
           const SizedBox(height: 24),
-          _button('ลองใหม่', () async => _controller.retry()),
+          _button(t('ลองใหม่', 'Retry'), () async => _controller.retry()),
           const SizedBox(height: 12),
           // Skip records that the subtest was never administered, which is not
           // the same as the patient scoring 0.
-          _button('ข้าม', () async => _controller.skip()),
+          _button(t('ข้าม', 'Skip'), () async => _controller.skip()),
         ];
 
       case SessionPhase.done:
@@ -204,9 +205,9 @@ class _VoiceSubtestPageState extends State<VoiceSubtestPage> {
   /// is not a score of 0 — see SubtestOutcome.skippedFor.
   Widget _skipButton() => TextButton(
         onPressed: () => _controller.skip(),
-        child: const Text(
-          'ข้ามข้อนี้',
-          style: TextStyle(fontSize: 16, color: Colors.black54),
+        child: Text(
+          t('ข้ามข้อนี้', 'Skip this item'),
+          style: const TextStyle(fontSize: 16, color: Colors.black54),
         ),
       );
 

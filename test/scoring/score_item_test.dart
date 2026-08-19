@@ -62,6 +62,7 @@ void main() {
       id: 'not-a-subtest',
       section: 'x',
       instructionTh: 'x',
+      instructionEn: 'x',
       maxScore: 1,
     );
     expect(() => scoreItem(rogue), throwsA(isA<ArgumentError>()));

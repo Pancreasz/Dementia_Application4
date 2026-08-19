@@ -50,6 +50,49 @@ int _levenshtein(String a, String b) {
   return previous[b.length];
 }
 
+const _tensWords = <String, int>{
+  'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50,
+  'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90,
+};
+const _teenWords = <String, int>{
+  'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
+  'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19,
+};
+const _onesWords = <String, int>{
+  'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4,
+  'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
+};
+
+/// Whisper renders a spoken number as digits or as words inconsistently —
+/// the English MoCA sentence "the thirty-three thieves" came back transcribed
+/// as "the 33 thieves". Left alone, that mismatch alone can cost the point
+/// (each edit is measured against a ~50-character sentence with only 0.10 of
+/// headroom). Rewriting spelled-out English numbers to digits before
+/// comparing makes the two forms equal regardless of which way the
+/// recognizer happened to render them.
+///
+/// Order matters: compound tens+ones ("thirty-three") first, then bare tens
+/// ("eighty") before bare ones ("eight") — otherwise "eight" would match
+/// inside "eighty" before the tens pass gets to it. Teens before ones for the
+/// same reason ("nineteen" contains "nine").
+String _spellOutNumbersAsDigits(String text) {
+  // Expects already-lowercased input (normalizeText runs before this).
+  var result = text;
+  final compound = RegExp(
+    '(${_tensWords.keys.join('|')})[\\s-]?(${_onesWords.keys.where((k) => k != 'zero').join('|')})',
+  );
+  result = result.replaceAllMapped(compound, (m) {
+    final value = _tensWords[m.group(1)]! + _onesWords[m.group(2)]!;
+    return value.toString();
+  });
+  for (final words in [_tensWords, _teenWords, _onesWords]) {
+    for (final entry in words.entries) {
+      result = result.replaceAll(RegExp('\\b${entry.key}\\b'), entry.value.toString());
+    }
+  }
+  return result;
+}
+
 /// Thai does not space between words, so where the recognizer puts spaces is
 /// arbitrary — the same utterance comes back as "…ช่วยงานวันนี้" one run and
 /// "…ช่วยงาน วันนี้" the next, and changing the decoding options changed it for
@@ -61,7 +104,7 @@ int _levenshtein(String a, String b) {
 /// space, which is the right thing for languages where a space is a word
 /// boundary and the wrong thing here.
 String _forComparison(String text) =>
-    normalizeText(text).replaceAll(RegExp(r'\s+'), '');
+    _spellOutNumbersAsDigits(normalizeText(text)).replaceAll(RegExp(r'\s+'), '');
 
 SubtestOutcome scoreSentenceRepetition(
   String subtestId,

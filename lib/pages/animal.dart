@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../moca/app_language.dart';
 import 'score.dart';
 
 void main() {
@@ -14,11 +15,18 @@ class AnimalMocaTestPage extends StatefulWidget {
 
 class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
   final TextEditingController _controller = TextEditingController();
-  final Map<String, String> animalImages = {
+  static const Map<String, String> _animalImagesTh = {
     'assets/lion.png': 'สิงโต',
     'assets/camel.png': 'อูฐ',
     'assets/rhino.png': 'แรด',
   };
+  static const Map<String, String> _animalImagesEn = {
+    'assets/lion.png': 'lion',
+    'assets/camel.png': 'camel',
+    'assets/rhino.png': 'rhino',
+  };
+  Map<String, String> get animalImages =>
+      AppLanguage.isEnglish ? _animalImagesEn : _animalImagesTh;
 
   late List<MapEntry<String, String>> shuffledAnimals;
   int currentIndex = 0;
@@ -45,14 +53,14 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('วิธีทำแบบทดสอบ'),
-        content: const Text('โปรดกรอกชื่อสัตว์ตามรูปที่เห็น'),
+        title: Text(t('วิธีทำแบบทดสอบ', 'How to take the test')),
+        content: Text(t('โปรดกรอกชื่อสัตว์ตามรูปที่เห็น', 'Please type the name of the animal shown')),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(context).pop();
             },
-            child: const Text('ตกลง'),
+            child: Text(t('ตกลง', 'OK')),
           ),
         ],
       ),
@@ -82,7 +90,7 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('กรอกชื่อสัตว์ให้ถูกต้อง'),
+        title: Text(t('กรอกชื่อสัตว์ให้ถูกต้อง', 'Type the correct animal name')),
         backgroundColor: const Color.fromARGB(255, 87, 152, 225),
         automaticallyImplyLeading: false,
       ),
@@ -92,7 +100,8 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    '✅ สำเร็จ!\nคะแนนของคุณ: $score / ${shuffledAnimals.length}',
+                    t('✅ สำเร็จ!\nคะแนนของคุณ: $score / ${shuffledAnimals.length}',
+                        '✅ Done!\nYour score: $score / ${shuffledAnimals.length}'),
                     textAlign: TextAlign.center,
                     style: const TextStyle(fontSize: 24),
                   ),
@@ -110,7 +119,7 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
                     onPressed: () {
                       Navigator.pushNamed(context, '/digit-span-forward');
                     },
-                    child: const Text('แบบทดสอบถัดไป'),
+                    child: Text(t('แบบทดสอบถัดไป', 'Next test')),
                   ),
                 ],
               ),
@@ -143,9 +152,9 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
                   padding: const EdgeInsets.all(16.0),
                   child: TextField(
                     controller: _controller,
-                    decoration: const InputDecoration(
-                      labelText: 'กรอกชื่อสัตว์ให้ถูกต้อง',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: t('กรอกชื่อสัตว์ให้ถูกต้อง', 'Type the correct animal name'),
+                      border: const OutlineInputBorder(),
                     ),
                   ),
                 ),
@@ -162,7 +171,7 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
                       ),
                     ),
                     onPressed: _handleSubmit,
-                    child: const Text('ส่งคำตอบ'),
+                    child: Text(t('ส่งคำตอบ', 'Submit')),
                   ),
                 ),
               ],

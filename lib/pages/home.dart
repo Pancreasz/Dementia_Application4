@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../moca/app_language.dart';
 import 'score.dart';
 
 void resetScores() {
@@ -11,9 +12,14 @@ void resetScores() {
   voiceOutcomes.clear();
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
   void _showHelpDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -35,7 +41,7 @@ class HomePage extends StatelessWidget {
                     child: Column(
                       children: [
                         Text(
-                          'ข้อตกลงในการใช้ซอฟต์แวร์',
+                          t('ข้อตกลงในการใช้ซอฟต์แวร์', 'License Agreement'),
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
@@ -66,7 +72,7 @@ class HomePage extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: const Text('OK'),
+                  child: Text(t('ตกลง', 'OK')),
                 ),
               ],
             ),
@@ -96,12 +102,19 @@ class HomePage extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'แบบทดสอบโรคประสาทเสื่อม',
+              t('แบบทดสอบโรคประสาทเสื่อม', 'Dementia Screening Test'),
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Colors.blue[800],
               ),
+            ),
+            const SizedBox(height: 20),
+            // Switches the whole session's language. Read once per page at
+            // build time, so it must be set here, before the test starts —
+            // nothing downstream listens for a change mid-session.
+            _LanguageToggle(
+              onChanged: () => setState(() {}),
             ),
             const SizedBox(height: 30),
             ElevatedButton(
@@ -121,9 +134,9 @@ class HomePage extends StatelessWidget {
                 resetScores();
                 Navigator.pushNamed(context, '/larksen');
               },
-              child: const Text(
-                "เริ่มทำแบบทดสอบ",
-                style: TextStyle(
+              child: Text(
+                t('เริ่มทำแบบทดสอบ', 'Start Test'),
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
@@ -132,6 +145,48 @@ class HomePage extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Two-way TH/EN switch. A plain pair of buttons rather than a single toggle
+/// so both states are always visible — the alternative (one button whose
+/// label names the *other* language) is a well-known source of "what
+/// language am I about to switch to" confusion.
+class _LanguageToggle extends StatelessWidget {
+  final VoidCallback onChanged;
+
+  const _LanguageToggle({required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _langButton('ไทย', Language.th),
+        const SizedBox(width: 8),
+        _langButton('English', Language.en),
+      ],
+    );
+  }
+
+  Widget _langButton(String label, Language language) {
+    final selected = AppLanguage.current == language;
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: selected ? Colors.blue[800] : Colors.grey[300],
+        foregroundColor: selected ? Colors.white : Colors.black87,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        elevation: selected ? 3 : 0,
+      ),
+      onPressed: () {
+        AppLanguage.current = language;
+        onChanged();
+      },
+      child: Text(label),
     );
   }
 }

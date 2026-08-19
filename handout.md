@@ -3,8 +3,10 @@
 Continuing this project in a new session? Start here.
 
 *Last updated 2026-08-19, after a real clock drawing scored 0/3 regardless of
-quality (fixed) and a real orientation session under-scored a correct date and
-year (fixed).*
+quality (fixed), a real orientation session under-scored a correct date and
+year (fixed), the nine voice-subtest screens rendered flush left instead of
+centered (fixed), and the top-level README was rewritten with real run
+instructions. All of it is committed and pushed to `origin/main`.*
 
 ## What this project is
 
@@ -191,6 +193,37 @@ Every score the app decides prints to the browser console as it is decided.
 fine for development and a supervised session. It is not somewhere to leave
 transcripts on a shared machine, and if this is ever deployed for unsupervised
 use the logging should be behind a flag.
+
+## Fixed: voice subtest screens rendered flush left — 2026-08-19
+
+All nine new subtest screens (`digit-span-forward`, `digit-span-backward`,
+`vigilance`, `sentence-repetition-1/2`, `verbal-fluency`, `abstraction-1/2`,
+`orientation`) showed their instruction text and buttons pinned to the left
+edge instead of centered — reported after a real run at
+`http://localhost:*/#/<route>`.
+
+**Root cause:** `Scaffold.body` does not center its child — it positions the
+child at the top-left of the available area. A `Column` with no stretching
+ancestor sizes its own width to its widest child, not to the full screen
+width, so `mainAxisAlignment: MainAxisAlignment.center` was only ever
+centering content *within* that narrow column, which itself sat flush left.
+One fix point because all nine routes share `lib/moca/voice_subtest_page.dart`.
+
+**Fix:** wrapped the body's `Padding` in a `Center` and added
+`mainAxisSize: MainAxisSize.min` to the `Column` so it doesn't try to expand
+to fill the now-unbounded width `Center` offers it.
+
+## README rewritten — 2026-08-19
+
+The top-level `README.md` was still the stock `flutter create` boilerplate
+and claimed `/transcribe` "is not deployed yet" (false since 2026-08-18). It
+now has real run instructions: putting Flutter on `PATH`, `flutter pub get`,
+starting the backend first, `flutter run -d chrome`, overriding the backend
+host via `--dart-define=MOCA_BACKEND_BASE_URL=...`, running tests, and a
+condensed backend env-setup section (venv location, `requirements-dev.txt`
+vs. the heavier `requirements-convert.txt` for ASR, `/health` check) that
+links to `backend/README.md` for the full CORS/latency/validation detail
+rather than duplicating it.
 
 ## Fixed: clock drawing scored 0/3 regardless of quality — 2026-08-19
 
@@ -582,13 +615,11 @@ flutter run -d windows   # see gotcha 7 — has never built
 
 ## Git state
 
-On `main`, **working tree is NOT clean** — a large uncommitted diff spans
-`backend/`, `lib/moca/`, `lib/pages/clock.dart`, `lib/scoring/`, matching
-tests, and a stale `docs/` build (see gotcha 2/3 before touching any of it;
-`docs/`'s diff is pre-existing build drift, not this session's doing). New
-untracked files include `lib/moca/backend_config.dart`,
-`lib/moca/recording_sink*.dart`, `lib/moca/score_log.dart`,
-`test/pages/clock_test.dart`, and their tests. None of this has been staged
-or committed — review and commit deliberately rather than `git add -A`
-(gotcha 2). `main` is ahead of `origin/main` by 1 commit and has not been
-pushed further.
+On `main`, **working tree is clean and pushed** — `main` and `origin/main`
+match. The clock/orientation/backend-wiring/web-target work from earlier
+2026-08-19 landed in `67a8daa` ("fix the clock and centered the voice test
+instruction," which also carries the flush-left fix above) and `ec4be44`
+("readme.md"). `docs/` still carries its usual pre-existing build drift (see
+gotcha 2/3) but nothing is staged or dirty right now. Still true: never
+`git add -A`/`git add .` (gotcha 2) — name paths explicitly when you do
+commit next.

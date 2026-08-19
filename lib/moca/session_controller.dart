@@ -6,6 +6,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import '../scoring/asr_segment.dart';
 import '../scoring/score_item.dart';
 import '../scoring/subtest_outcome.dart';
+import 'app_language.dart';
 import 'asr_client.dart';
 import 'audio_player.dart';
 import 'audio_recorder.dart';
@@ -54,7 +55,8 @@ class SubtestSessionController extends ChangeNotifier {
     this.referenceDate,
     Future<bool> Function(String)? assetExists,
   }) : _assetExists = assetExists ?? _bundleHasAsset {
-    _digitPlayer = digitPlayer ?? DigitSequencePlayer(playback: playback);
+    _digitPlayer = digitPlayer ??
+        DigitSequencePlayer(playback: playback, language: AppLanguage.current);
   }
 
   static Future<bool> _bundleHasAsset(String path) async {
@@ -95,7 +97,7 @@ class SubtestSessionController extends ChangeNotifier {
         return;
       }
 
-      final stimulus = spec.stimulusAsset;
+      final stimulus = spec.stimulusAssetForLanguage;
       if (stimulus != null) {
         // A voice subtest that declares a stimulus but has no file is not
         // administrable — recording the patient answering a question they
@@ -140,7 +142,7 @@ class SubtestSessionController extends ChangeNotifier {
     // administered — without this, total audio failure records a real 0/1,
     // asserting the patient failed a task they never heard.
     for (final digit in spec.sequence!.split('').toSet()) {
-      if (!await _assetExists('assets/moca/audio/digit-$digit.wav')) {
+      if (!await _assetExists(digitAssetFor(digit, language: AppLanguage.current))) {
         _complete(SubtestOutcome.skippedFor(spec.id));
         return;
       }
@@ -181,7 +183,10 @@ class SubtestSessionController extends ChangeNotifier {
     _setPhase(SessionPhase.scoring);
     try {
       final bytes = await recorder.stop();
-      final AsrResult result = await asr.transcribe(bytes);
+      final AsrResult result = await asr.transcribe(
+        bytes,
+        language: AppLanguage.isEnglish ? 'en' : 'th',
+      );
       final List<AsrSegment> segments = result.segments;
 
       if (abandoned()) return;

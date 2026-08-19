@@ -1,5 +1,31 @@
+import '../moca/app_language.dart';
 import 'matchers.dart';
 import 'subtest_outcome.dart';
+
+const _englishMonths = [
+  'january',
+  'february',
+  'march',
+  'april',
+  'may',
+  'june',
+  'july',
+  'august',
+  'september',
+  'october',
+  'november',
+  'december',
+];
+
+const _englishDays = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+];
 
 const _thaiMonths = [
   'มกราคม',
@@ -67,19 +93,27 @@ bool _yearStated(String normalized, int year) =>
     _numberStated(normalized, year.toString()) ||
     thaiFullNumberStated(normalized, year);
 
-/// Six independent items, one point each. Note the year is Buddhist Era
-/// (Gregorian + 543), as Thai MoCA forms use.
+/// Six independent items, one point each. In Thai mode the year is Buddhist
+/// Era (Gregorian + 543), as Thai MoCA forms use. In English mode both the
+/// Buddhist Era year and the plain Gregorian year are accepted — an
+/// English-speaking patient naturally states the year in Gregorian form.
 SubtestOutcome scoreOrientation(
   String transcript, {
   required DateTime referenceDate,
   required String place,
   required String province,
+  Language language = Language.th,
 }) {
-  // Dart's DateTime.weekday is 1 = Monday … 7 = Sunday, which is why _thaiDays
-  // starts at Monday rather than Sunday.
+  // Dart's DateTime.weekday is 1 = Monday … 7 = Sunday, which is why the day
+  // name lists start at Monday rather than Sunday.
+  final isEnglish = language == Language.en;
   final items = <String, String>{
-    'day': _thaiDays[referenceDate.weekday - 1],
-    'month': _thaiMonths[referenceDate.month - 1],
+    'day': isEnglish
+        ? _englishDays[referenceDate.weekday - 1]
+        : _thaiDays[referenceDate.weekday - 1],
+    'month': isEnglish
+        ? _englishMonths[referenceDate.month - 1]
+        : _thaiMonths[referenceDate.month - 1],
     'year': (referenceDate.year + 543).toString(),
     'date': referenceDate.day.toString(),
     'place': place,
@@ -96,7 +130,12 @@ SubtestOutcome scoreOrientation(
       case 'date':
         correct = _dateStated(normalized, referenceDate.day);
       case 'year':
-        correct = _yearStated(normalized, referenceDate.year + 543);
+        // Buddhist Era is the administration the Thai form calls for, but an
+        // English-speaking patient states the year in their own everyday
+        // form — Gregorian — not the Thai civil calendar, so both are
+        // accepted in English mode. Thai mode stays Buddhist-Era only.
+        correct = _yearStated(normalized, referenceDate.year + 543) ||
+            (isEnglish && _yearStated(normalized, referenceDate.year));
       default:
         correct = keywordMatch(normalized, [expected]);
     }

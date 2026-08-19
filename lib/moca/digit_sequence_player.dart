@@ -1,8 +1,15 @@
 import 'dart:async';
 
+import 'app_language.dart';
 import 'audio_player.dart';
 
-String _assetFor(String digit) => 'assets/moca/audio/digit-$digit.wav';
+/// The per-digit stimulus file for one language. English narration ships as
+/// mp3, Thai as wav — the extension follows the file the audio was actually
+/// supplied in, not a fixed format.
+String digitAssetFor(String digit, {Language language = Language.th}) =>
+    language == Language.en
+        ? 'assets/moca/audio/eng-digit-$digit.mp3'
+        : 'assets/moca/audio/digit-$digit.wav';
 
 /// Schedules Vigilance's digit stream.
 ///
@@ -11,11 +18,12 @@ String _assetFor(String digit) => 'assets/moca/audio/digit-$digit.wav';
 /// closes, which is a different moment from when the last sound stops.
 class DigitSequencePlayer {
   final AudioPlayback playback;
+  final Language language;
 
   final List<Timer> _timers = [];
   bool _cancelled = false;
 
-  DigitSequencePlayer({required this.playback});
+  DigitSequencePlayer({required this.playback, this.language = Language.th});
 
   Future<void> play(
     String sequence, {
@@ -59,7 +67,7 @@ class DigitSequencePlayer {
         // Deliberately not awaited: awaiting playback would push the next
         // digit's onset out by however long this one runs, which is exactly
         // the drift the shared start reference exists to prevent.
-        playback.play(_assetFor(digits[index])).catchError((_) {
+        playback.play(digitAssetFor(digits[index], language: language)).catchError((_) {
           // A digit that fails to sound is a scoring problem, not a crash: it
           // shows up as a miss rather than killing the session mid-sequence.
         });

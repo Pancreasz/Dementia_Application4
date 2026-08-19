@@ -1,3 +1,4 @@
+import '../moca/app_language.dart';
 import '../moca/session_config.dart';
 import '../moca/subtest_spec.dart';
 import 'abstraction.dart';
@@ -35,14 +36,15 @@ SubtestOutcome scoreItem(
     case 'sentence-repetition-1':
     case 'sentence-repetition-2':
       return scoreSentenceRepetition(
-          spec.id, transcript, spec.expectedSentence!);
+          spec.id, transcript, spec.expectedSentenceForLanguage!);
 
     case 'verbal-fluency':
-      return scoreVerbalFluency(segments, initialLetter: spec.initialLetter);
+      return scoreVerbalFluency(segments,
+          initialLetter: spec.initialLetterForLanguage);
 
     case 'abstraction-1':
     case 'abstraction-2':
-      return scoreAbstraction(spec.id, transcript);
+      return scoreAbstraction(spec.id, transcript, language: AppLanguage.current);
 
     case 'orientation':
       return scoreOrientation(
@@ -50,6 +52,7 @@ SubtestOutcome scoreItem(
         referenceDate: referenceDate ?? DateTime.now(),
         place: SessionConfig.place,
         province: SessionConfig.province,
+        language: AppLanguage.current,
       );
 
     default:

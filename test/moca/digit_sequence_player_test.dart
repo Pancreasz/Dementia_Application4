@@ -1,8 +1,38 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moca_main/moca/app_language.dart';
 import 'package:moca_main/moca/audio_player.dart';
 import 'package:moca_main/moca/digit_sequence_player.dart';
 
 void main() {
+  group('digitAssetFor', () {
+    test('defaults to the Thai wav file', () {
+      expect(digitAssetFor('5'), 'assets/moca/audio/digit-5.wav');
+    });
+
+    test('resolves to the English mp3 file in English mode', () {
+      expect(digitAssetFor('5', language: Language.en),
+          'assets/moca/audio/eng-digit-5.mp3');
+    });
+  });
+
+  testWidgets('in English mode, plays each digit from the English mp3 files',
+      (tester) async {
+    final playback = FakeAudioPlayback();
+    final player =
+        DigitSequencePlayer(playback: playback, language: Language.en);
+
+    final done = player.play('513', intervalMs: 1000, leadInMs: 1000);
+    await tester.pump(const Duration(milliseconds: 4100));
+    await done;
+
+    final played = playback.calls.where((c) => c.startsWith('play:')).toList();
+    expect(played, [
+      'play:assets/moca/audio/eng-digit-5.mp3',
+      'play:assets/moca/audio/eng-digit-1.mp3',
+      'play:assets/moca/audio/eng-digit-3.mp3',
+    ]);
+  });
+
   testWidgets('plays each digit once, in order', (tester) async {
     final playback = FakeAudioPlayback();
     final player = DigitSequencePlayer(playback: playback);

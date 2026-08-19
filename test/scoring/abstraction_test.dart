@@ -1,8 +1,38 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moca_main/moca/app_language.dart';
 import 'package:moca_main/scoring/abstraction.dart';
 import 'package:moca_main/scoring/subtest_outcome.dart';
 
 void main() {
+  group('scoreAbstraction in English mode', () {
+    SubtestOutcome score(String id, String t) =>
+        scoreAbstraction(id, t, language: Language.en);
+
+    test('train/bicycle accepts "vehicle"', () {
+      expect(score('abstraction-1', 'they are both vehicles').score, 1);
+    });
+
+    test('train/bicycle accepts "transportation"', () {
+      expect(score('abstraction-1', 'a means of transportation').score, 1);
+    });
+
+    test('train/bicycle rejects a concrete-feature answer', () {
+      expect(score('abstraction-1', 'they both have wheels').score, 0);
+    });
+
+    test('watch/ruler accepts "measuring instrument"', () {
+      expect(score('abstraction-2', 'it is a measuring instrument').score, 1);
+    });
+
+    test('watch/ruler accepts the bare verb "measure"', () {
+      expect(score('abstraction-2', 'you use them to measure').score, 1);
+    });
+
+    test('defaults to Thai terms when no language is passed', () {
+      expect(scoreAbstraction('abstraction-1', 'vehicle').score, 0);
+    });
+  });
+
   group('scoreAbstraction for รถไฟ–จักรยาน', () {
     SubtestOutcome score(String t) => scoreAbstraction('abstraction-1', t);
 

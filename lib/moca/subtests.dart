@@ -20,8 +20,10 @@ const List<SubtestSpec> kVoiceSubtests = [
     id: 'digit-span-forward',
     section: 'สมาธิ',
     instructionTh: 'ฟังตัวเลขต่อไปนี้ แล้วพูดทวนตามลำดับ',
+    instructionEn: 'Listen to the following numbers, then repeat them in the same order.',
     maxScore: 1,
     stimulusAsset: 'assets/moca/audio/digits-forward.wav',
+    stimulusAssetEn: 'assets/moca/audio/eng-digits-forward.m4a',
     expectedSequence: '21854',
     timeLimitSec: 7,
   ),
@@ -29,8 +31,10 @@ const List<SubtestSpec> kVoiceSubtests = [
     id: 'digit-span-backward',
     section: 'สมาธิ',
     instructionTh: 'ฟังตัวเลขต่อไปนี้ แล้วพูดทวนย้อนกลับ',
+    instructionEn: 'Listen to the following numbers, then repeat them in reverse order.',
     maxScore: 1,
     stimulusAsset: 'assets/moca/audio/digits-backward.wav',
+    stimulusAssetEn: 'assets/moca/audio/eng-digits-backward.m4a',
     // The patient hears 742 and must say it reversed.
     expectedSequence: '247',
     timeLimitSec: 7,
@@ -42,6 +46,8 @@ const List<SubtestSpec> kVoiceSubtests = [
     // who reads one instruction and is set another has been given a second
     // task nobody intended, and on this subtest that looks like a deficit.
     instructionTh: 'คุณจะได้ยินตัวเลขหลายตัว ให้แตะที่ปุ่มบนหน้าจอ ทุกครั้งที่ได้ยินเลขหนึ่ง',
+    instructionEn:
+        'You will hear several numbers. Tap the button on the screen every time you hear the number one.',
     maxScore: 1,
     responseMode: ResponseMode.tap,
     sequence: kVigilanceSequence,
@@ -66,30 +72,39 @@ const List<SubtestSpec> kVoiceSubtests = [
     id: 'sentence-repetition-1',
     section: 'ภาษา',
     instructionTh: 'ฟังประโยคต่อไปนี้ แล้วพูดทวนให้เหมือนเดิมทุกคำ',
+    instructionEn: 'Listen to the following sentence, then repeat it back exactly.',
     maxScore: 1,
     stimulusAsset: 'assets/moca/audio/sentence-1.wav',
+    stimulusAssetEn: 'assets/moca/audio/eng-sentence-1.m4a',
     expectedSentence: 'ฉันรู้ว่าจอมเป็นคนเดียวที่มาช่วยงานวันนี้',
+    expectedSentenceEn: 'How can a clam cram in a clean cream can',
     timeLimitSec: 20,
   ),
   SubtestSpec(
     id: 'sentence-repetition-2',
     section: 'ภาษา',
     instructionTh: 'ฟังประโยคต่อไปนี้ แล้วพูดทวนให้เหมือนเดิมทุกคำ',
+    instructionEn: 'Listen to the following sentence, then repeat it back exactly.',
     maxScore: 1,
     stimulusAsset: 'assets/moca/audio/sentence-2.wav',
+    stimulusAssetEn: 'assets/moca/audio/eng-sentence-2.m4a',
     expectedSentence: 'แมวมักจะซ่อนตัวอยู่หลังเก้าอี้เมื่อมีหมาอยู่ในห้อง',
+    expectedSentenceEn: 'The thirty-three thieves thought that they thrilled the throne.',
     timeLimitSec: 20,
   ),
   SubtestSpec(
     id: 'verbal-fluency',
     section: 'ภาษา',
     instructionTh: 'บอกคำที่ขึ้นต้นด้วยตัว ก ให้ได้มากที่สุดภายในหนึ่งนาที',
+    instructionEn:
+        'Say as many words as you can that begin with the letter F within one minute.',
     maxScore: 1,
     // The only normed deadline in the app. 60 seconds is what the "11 or more
     // words" cutoff is measured against, so it is enforced.
     timeLimitSec: 60,
     enforceTimeLimit: true,
     initialLetter: 'ก',
+    initialLetterEn: 'F',
   ),
   SubtestSpec(
     id: 'abstraction-1',
@@ -99,6 +114,8 @@ const List<SubtestSpec> kVoiceSubtests = [
     // misunderstanding the task rather than for failing it.
     instructionTh:
         'บอกว่าของสองสิ่งเหมือนกันอย่างไร ตัวอย่างเช่น กล้วยกับส้ม เป็นผลไม้ทั้งคู่ ทีนี้ รถไฟกับจักรยาน?',
+    instructionEn:
+        'Tell me how two things are alike. For example, a banana and an orange are both fruit. Now, how are a train and a bicycle alike?',
     maxScore: 1,
     timeLimitSec: 30,
   ),
@@ -108,6 +125,7 @@ const List<SubtestSpec> kVoiceSubtests = [
     // No example this time — it was given once, and repeating it would prompt
     // the patient toward the kind of answer being measured.
     instructionTh: 'แล้วนาฬิกากับไม้บรรทัดเหมือนกันอย่างไร?',
+    instructionEn: 'Now, how are a watch and a ruler alike?',
     maxScore: 1,
     timeLimitSec: 30,
   ),
@@ -115,6 +133,7 @@ const List<SubtestSpec> kVoiceSubtests = [
     id: 'orientation',
     section: 'การรับรู้เวลาและสถานที่',
     instructionTh: 'บอกวัน เดือน ปี วันที่ สถานที่ และจังหวัดในวันนี้',
+    instructionEn: 'Tell me the day, month, year, date, place, and city today.',
     maxScore: 6,
     timeLimitSec: 15,
   ),

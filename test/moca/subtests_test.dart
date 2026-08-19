@@ -1,8 +1,53 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moca_main/moca/app_language.dart';
 import 'package:moca_main/moca/subtest_spec.dart';
 import 'package:moca_main/moca/subtests.dart';
 
 void main() {
+  test('every subtest has English instruction text', () {
+    for (final spec in kVoiceSubtests) {
+      expect(spec.instructionEn.trim(), isNotEmpty, reason: spec.id);
+    }
+  });
+
+  test('every subtest with a stimulus by design also has an English one', () {
+    for (final spec in kVoiceSubtests) {
+      if (spec.stimulusAsset != null) {
+        expect(spec.stimulusAssetEn, isNotNull, reason: spec.id);
+      } else {
+        expect(spec.stimulusAssetEn, isNull, reason: spec.id);
+      }
+    }
+  });
+
+  test('verbal fluency asks for the letter F in English mode', () {
+    final fluency = kVoiceSubtests.firstWhere((s) => s.id == 'verbal-fluency');
+    expect(fluency.initialLetter, 'ก');
+    expect(fluency.initialLetterEn, 'F');
+  });
+
+  group('SubtestSpec language resolution', () {
+    tearDown(() => AppLanguage.current = Language.th);
+
+    test('instruction/stimulus/sentence/letter fall back to Thai by default', () {
+      final spec = kVoiceSubtests.firstWhere((s) => s.id == 'sentence-repetition-1');
+      expect(spec.instruction, spec.instructionTh);
+      expect(spec.stimulusAssetForLanguage, spec.stimulusAsset);
+      expect(spec.expectedSentenceForLanguage, spec.expectedSentence);
+    });
+
+    test('switch to English resolves the English fields instead', () {
+      AppLanguage.current = Language.en;
+      final spec = kVoiceSubtests.firstWhere((s) => s.id == 'sentence-repetition-1');
+      expect(spec.instruction, spec.instructionEn);
+      expect(spec.stimulusAssetForLanguage, spec.stimulusAssetEn);
+      expect(spec.expectedSentenceForLanguage, spec.expectedSentenceEn);
+
+      final fluency = kVoiceSubtests.firstWhere((s) => s.id == 'verbal-fluency');
+      expect(fluency.initialLetterForLanguage, 'F');
+    });
+  });
+
   test('covers exactly the nine planned subtests, in administration order', () {
     expect(kVoiceSubtests.map((s) => s.id).toList(), [
       'digit-span-forward',

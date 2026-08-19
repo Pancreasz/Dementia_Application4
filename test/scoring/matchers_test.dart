@@ -80,6 +80,21 @@ void main() {
     test('still returns nothing for speech containing no digits', () {
       expect(extractDigitSequence('ไม่ทราบ'), '');
     });
+
+    // Regression: an English-mode digit-span answer can come back from the
+    // recognizer as spelled-out words rather than digits.
+    test('extracts digits spoken as English number words', () {
+      expect(extractDigitSequence('Two, one, eight, five, four.'), '21854');
+    });
+
+    test('handles a mix of English words and numerals', () {
+      expect(extractDigitSequence('7 four two'), '742');
+    });
+
+    test('covers every English digit word', () {
+      expect(extractDigitSequence('zero one two three four five six seven eight nine'),
+          '0123456789');
+    });
   });
 
   group('thaiCompoundNumberWords', () {

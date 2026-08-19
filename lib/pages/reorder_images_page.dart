@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../moca/app_language.dart';
 import 'score.dart' as globals;
 
 class ReorderImagesPage extends StatefulWidget {
@@ -65,7 +66,9 @@ class _ReorderImagesPageState extends State<ReorderImagesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Center(child: Text('เรียงลำดับรูปภาพ ให้เหมือนกับที่ได้เรียงไว้ก่อนหน้านี้')),
+        title: Center(
+            child: Text(t('เรียงลำดับรูปภาพ ให้เหมือนกับที่ได้เรียงไว้ก่อนหน้านี้',
+                'Arrange the pictures the same way you did before'))),
         centerTitle: true,
         automaticallyImplyLeading: false,
       ),
@@ -76,7 +79,7 @@ class _ReorderImagesPageState extends State<ReorderImagesPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'รูปภาพทั้งหมด:',
+                t('รูปภาพทั้งหมด:', 'All pictures:'),
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 10),
@@ -105,7 +108,7 @@ class _ReorderImagesPageState extends State<ReorderImagesPage> {
               ),
               SizedBox(height: 20),
               Text(
-                'ลากรูปภาพมาเรียงลำดับให้ถูกต้อง:',
+                t('ลากรูปภาพมาเรียงลำดับให้ถูกต้อง:', 'Drag the pictures into the correct order:'),
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               SizedBox(height: 10),
@@ -189,7 +192,7 @@ class _ReorderImagesPageState extends State<ReorderImagesPage> {
                     shadowColor: Colors.blue.withOpacity(0.3),
                   ),
                   onPressed: _canSubmit() ? _submitAnswers : null,
-                  child: Text('ส่งคำตอบ'),
+                  child: Text(t('ส่งคำตอบ', 'Submit')),
                 ),
               ),
             ],

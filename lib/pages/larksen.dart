@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 
+import 'package:moca_main/moca/app_language.dart';
 import 'package:moca_main/pages/score.dart';
 
 void main() {
@@ -34,18 +35,9 @@ class _GameScreenState extends State<GameScreen> {
   List<Offset> currentLine = [];
   bool showInstructions = true;
 
-  final List<String> checkpointLabels = [
-    '1',
-    'ก',
-    '2',
-    'ข',
-    '3',
-    'ค',
-    '4',
-    'ง',
-    '5',
-    'จ',
-  ];
+  List<String> get checkpointLabels => AppLanguage.isEnglish
+      ? const ['1', 'A', '2', 'B', '3', 'C', '4', 'D', '5', 'E']
+      : const ['1', 'ก', '2', 'ข', '3', 'ค', '4', 'ง', '5', 'จ'];
 
   @override
   void initState() {
@@ -326,9 +318,9 @@ class _GameScreenState extends State<GameScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text(
-          'วิธีทำแบบทดสอบ',
-          style: TextStyle(
+        title: Text(
+          t('วิธีทำแบบทดสอบ', 'How to take the test'),
+          style: const TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
             color: Colors.blue,
@@ -349,22 +341,29 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              _buildInstructionRow('1. ต่อจุดทั้งหมดตามลำดับที่ถูกต้อง'),
-              const Padding(
-                padding: EdgeInsets.only(left: 24.0, top: 4.0),
+              _buildInstructionRow(t(
+                '1. ต่อจุดทั้งหมดตามลำดับที่ถูกต้อง',
+                '1. Connect all the dots in the correct order',
+              )),
+              Padding(
+                padding: const EdgeInsets.only(left: 24.0, top: 4.0),
                 child: Text(
-                  'ตัวอย่าง: 1 → ก → 2 → ... → จ',
-                  style: TextStyle(fontStyle: FontStyle.italic),
+                  t('ตัวอย่าง: 1 → ก → 2 → ... → จ', 'Example: 1 → A → 2 → ... → E'),
+                  style: const TextStyle(fontStyle: FontStyle.italic),
                 ),
               ),
               const SizedBox(height: 12),
-              _buildInstructionRow('2. ห้ามลากเส้นทับกัน'),
+              _buildInstructionRow(t('2. ห้ามลากเส้นทับกัน', '2. Do not let lines cross')),
               const SizedBox(height: 12),
-              _buildInstructionRow('3. เมื่อลากเส้นเชื่อมจุดแล้วกรุณายกนิ้วขึ้นแล้วลากเส้นต่อไป'),
+              _buildInstructionRow(t(
+                '3. เมื่อลากเส้นเชื่อมจุดแล้วกรุณายกนิ้วขึ้นแล้วลากเส้นต่อไป',
+                '3. After connecting a dot, lift your finger before drawing the next line',
+              )),
               const SizedBox(height: 12),
-              _buildInstructionRow(
+              _buildInstructionRow(t(
                 '4. ถ้าหากจุดสีฟ้านั้นออกไปนอกหน้าจอ หรือ หลุดขอบให้กดเริ่มใหม่จนกว่าจุดทั้งหมดจะอยู่ในจอ',
-              ),
+                '4. If a blue dot falls off screen or past the edge, press restart until every dot is on screen',
+              )),
               const SizedBox(height: 20),
             ],
           ),
@@ -379,9 +378,9 @@ class _GameScreenState extends State<GameScreen> {
                   vertical: 12,
                 ),
               ),
-              child: const Text(
-                'เริ่มแบบทดสอบ',
-                style: TextStyle(fontSize: 18, color: Colors.white),
+              child: Text(
+                t('เริ่มแบบทดสอบ', 'Start test'),
+                style: const TextStyle(fontSize: 18, color: Colors.white),
               ),
               onPressed: () {
                 setState(() {
@@ -421,9 +420,9 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'ตัวอย่าง 1 -> ก -> 2',
-          style: TextStyle(
+        title: Text(
+          t('ตัวอย่าง 1 -> ก -> 2', 'Example 1 -> A -> 2'),
+          style: const TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -445,9 +444,9 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
               onPressed: _resetGame,
-              child: const Text(
-                'เริ่มใหม่',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              child: Text(
+                t('เริ่มใหม่', 'Restart'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -463,9 +462,9 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
               onPressed: isChecking ? null : _checkSolution,
-              child: const Text(
-                'ส่งคำตอบ',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              child: Text(
+                t('ส่งคำตอบ', 'Submit'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -610,7 +609,7 @@ class CheckpointPainter extends CustomPainter {
 
       if (i == 0) {
         final startPainter = TextPainter(
-          text: TextSpan(text: 'เริ่มต้น', style: subtitleStyle),
+          text: TextSpan(text: t('เริ่มต้น', 'Start'), style: subtitleStyle),
           textDirection: TextDirection.ltr,
         );
         startPainter.layout();
@@ -620,7 +619,7 @@ class CheckpointPainter extends CustomPainter {
         );
       } else if (i == checkpoints.length - 1) {
         final endPainter = TextPainter(
-          text: TextSpan(text: 'สิ้นสุด', style: subtitleStyle),
+          text: TextSpan(text: t('สิ้นสุด', 'End'), style: subtitleStyle),
           textDirection: TextDirection.ltr,
         );
         endPainter.layout();

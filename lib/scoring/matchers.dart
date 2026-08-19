@@ -34,12 +34,6 @@ const _thaiDigitWords = <String, String>{
   'เก้า': '9',
 };
 
-/// Longest first, so a shorter word can never shadow a longer one that starts
-/// with the same characters.
-final List<MapEntry<String, String>> _thaiDigitEntries =
-    _thaiDigitWords.entries.toList()
-      ..sort((a, b) => b.key.length.compareTo(a.key.length));
-
 /// The Thai *compound* number word(s) for `value` (0-99), as actually spoken
 /// for a calendar date — "nineteen" is "สิบเก้า" (สิบ=ten + เก้า=nine), not a
 /// digit-by-digit reading. `_thaiDigitWords` only covers single digits 0-9,
@@ -182,12 +176,40 @@ bool thaiFullNumberStated(String normalized, int value) {
 /// Thai numerals ๐-๙, in value order.
 const _thaiNumerals = '๐๑๒๓๔๕๖๗๘๙';
 
+const _englishDigitWords = <String, String>{
+  'zero': '0',
+  'one': '1',
+  'two': '2',
+  'three': '3',
+  'four': '4',
+  'five': '5',
+  'six': '6',
+  'seven': '7',
+  'eight': '8',
+  'nine': '9',
+};
+
+/// Thai and English digit words together, longest key first so a shorter
+/// word can never shadow a longer one that starts with the same characters
+/// (not that any collide across the two languages — this just keeps the same
+/// invariant [_thaiDigitEntries] has).
+final List<MapEntry<String, String>> _digitWordEntries =
+    (<String, String>{..._thaiDigitWords, ..._englishDigitWords})
+        .entries
+        .toList()
+      ..sort((a, b) => b.key.length.compareTo(a.key.length));
+
 /// Scans the transcript character by character rather than splitting on
 /// whitespace. Thai does not space between words, so whether the recognizer
 /// returns "สอง สี่ เจ็ด" or "สองสี่เจ็ด" for the same utterance is arbitrary
 /// — and the whitespace-splitting version scored the run-on form as no digits
 /// at all, silently marking a correct answer wrong. Scanning handles spaced,
 /// run-on and mixed forms identically, plus Thai and Arabic numerals.
+///
+/// English digit words ("two", "one", ...) are matched the same way as Thai
+/// ones: an English-mode digit-span answer can come back from the recognizer
+/// as spelled-out words ("Two, one, eight, five, four.") rather than digits,
+/// and without this a correct answer silently extracts as empty.
 String extractDigitSequence(String transcript) {
   final normalized = normalizeText(transcript);
   final digits = StringBuffer();
@@ -210,7 +232,7 @@ String extractDigitSequence(String transcript) {
     }
 
     MapEntry<String, String>? word;
-    for (final entry in _thaiDigitEntries) {
+    for (final entry in _digitWordEntries) {
       if (normalized.startsWith(entry.key, i)) {
         word = entry;
         break;

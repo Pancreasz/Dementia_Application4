@@ -1,8 +1,63 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moca_main/moca/app_language.dart';
 import 'package:moca_main/scoring/orientation.dart';
 import 'package:moca_main/scoring/subtest_outcome.dart';
 
 void main() {
+  group('scoreOrientation in English mode', () {
+    // August 13, 2026 — a Thursday.
+    final referenceDate = DateTime(2026, 8, 13);
+
+    SubtestOutcome score(String transcript) => scoreOrientation(
+          transcript,
+          referenceDate: referenceDate,
+          place: 'Hospital',
+          province: 'Bangkok',
+          language: Language.en,
+        );
+
+    test('awards full 6/6 when all six items are stated in English', () {
+      final outcome = score(
+          'today is thursday, august, year 2569, the 13th, at the hospital, in bangkok');
+      expect(outcome.score, 6);
+      expect(outcome.maxScore, 6);
+    });
+
+    test('day and month are matched against English names', () {
+      final outcome = score('thursday august');
+      expect(outcome.detail['day'], isTrue);
+      expect(outcome.detail['month'], isTrue);
+    });
+
+    test('accepts either the Buddhist Era or the Gregorian year', () {
+      expect(score('2569').detail['year'], isTrue);
+      // A regression fix: an English-speaking patient naturally states the
+      // Gregorian year, not the Thai civil calendar's Buddhist Era.
+      expect(score('2026').detail['year'], isTrue);
+      expect(score('1999').detail['year'], isFalse);
+    });
+
+    test('Thai mode still only accepts the Buddhist Era year', () {
+      final outcome = scoreOrientation(
+        '2026',
+        referenceDate: referenceDate,
+        place: 'โรงพยาบาลศิริราช',
+        province: 'กรุงเทพ',
+      );
+      expect(outcome.detail['year'], isFalse);
+    });
+
+    test('defaults to Thai day/month names when no language is passed', () {
+      final outcome = scoreOrientation(
+        'thursday',
+        referenceDate: referenceDate,
+        place: 'Hospital',
+        province: 'Bangkok',
+      );
+      expect(outcome.detail['day'], isFalse);
+    });
+  });
+
   // August 13, 2026 — a Thursday.
   final referenceDate = DateTime(2026, 8, 13);
   const place = 'โรงพยาบาลศิริราช';

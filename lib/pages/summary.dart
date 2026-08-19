@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:moca_main/moca/app_language.dart';
 import 'package:moca_main/moca/subtests.dart';
 import 'package:moca_main/scoring/session_total.dart';
 import 'score.dart';
@@ -19,9 +20,9 @@ class EndPage extends StatelessWidget {
     );
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          "ผลการทดสอบ",
-          style: TextStyle(
+        title: Text(
+          t("ผลการทดสอบ", "Test Results"),
+          style: const TextStyle(
             fontSize: 45,
             fontWeight: FontWeight.bold,
             color: Colors.white,
@@ -58,47 +59,51 @@ class EndPage extends StatelessWidget {
                 children: [
                   // Result Card
                   _buildResultCard(
-                    title: "ผลการทดสอบเบื้องต้น",
+                    title: t("ผลการทดสอบเบื้องต้น", "Preliminary Result"),
                     content: total.category == null
-                        ? "ไม่สามารถประเมินได้ เนื่องจากมีแบบทดสอบที่ถูกข้าม"
-                        : "คุณเป็น: ${total.category}",
+                        ? t("ไม่สามารถประเมินได้ เนื่องจากมีแบบทดสอบที่ถูกข้าม",
+                            "Could not be assessed because some tests were skipped")
+                        : t("คุณเป็น: ${total.category}",
+                            "Result: ${categoryLabel(total.category!)}"),
                     contentColor: _getResultColor(total),
                     icon: _getResultIcon(total),
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Criteria Card
                   _buildInfoCard(
-                    title: "เกณฑ์การประเมิน (เต็ม 30 คะแนน):",
+                    title: t("เกณฑ์การประเมิน (เต็ม 30 คะแนน):", "Scoring criteria (out of 30):"),
                     items: [
-                      "26-30: ปกติ",
-                      "18-25: บกพร่องเล็กน้อย",
-                      "10-17: มีความบกพร่อง",
-                      "0-9: เสี่ยงสูง - ควรเข้าพบปรึกษาแพทย์",
+                      t("26-30: ปกติ", "26-30: Normal"),
+                      t("18-25: บกพร่องเล็กน้อย", "18-25: Mild impairment"),
+                      t("10-17: มีความบกพร่อง", "10-17: Impaired"),
+                      t("0-9: เสี่ยงสูง - ควรเข้าพบปรึกษาแพทย์", "0-9: High risk - please consult a doctor"),
                       // Stated rather than left implicit: the drawing subtest
                       // is administered on paper by a clinician, so every
                       // patient here is scored one point below the scale.
-                      "หมายเหตุ: แบบทดสอบนี้ยังไม่รวมข้อวาดรูปทรง (1 คะแนน)",
+                      t("หมายเหตุ: แบบทดสอบนี้ยังไม่รวมข้อวาดรูปทรง (1 คะแนน)",
+                          "Note: this test does not yet include the shape-copy item (1 point)"),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Scores Card
                   _buildScoresCard(
-                    title: "คะแนนการทดสอบของคุณ:",
+                    title: t("คะแนนการทดสอบของคุณ:", "Your test scores:"),
                     items: [
-                      "แบบทดสอบลากเส้น: $larkScore/1",
-                      "แบบทดสอบนาฬิกา: $clockScore/3",
-                      "แบบทดสอบทายชื่อสัตว์: $animalScore/3",
-                      "แบบทดสอบลบเลข: $attentionScore/3",
-                      "แบบทดสอบความจำ: $reorderScore/5",
+                      t("แบบทดสอบลากเส้น: $larkScore/1", "Trail making: $larkScore/1"),
+                      t("แบบทดสอบนาฬิกา: $clockScore/3", "Clock drawing: $clockScore/3"),
+                      t("แบบทดสอบทายชื่อสัตว์: $animalScore/3", "Naming: $animalScore/3"),
+                      t("แบบทดสอบลบเลข: $attentionScore/3", "Serial subtraction: $attentionScore/3"),
+                      t("แบบทดสอบความจำ: $reorderScore/5", "Memory: $reorderScore/5"),
                       for (final spec in kVoiceSubtests)
-                        "${spec.section} (${spec.id}): "
-                            "${voiceOutcomes[spec.id] == null || voiceOutcomes[spec.id]!.skipped ? 'ข้าม' : '${voiceOutcomes[spec.id]!.score}/${spec.maxScore}'}",
+                        "${sectionLabel(spec.section)} (${spec.id}): "
+                            "${voiceOutcomes[spec.id] == null || voiceOutcomes[spec.id]!.skipped ? t('ข้าม', 'Skipped') : '${voiceOutcomes[spec.id]!.score}/${spec.maxScore}'}",
                     ],
-                    totalScore: "คะแนนรวมทั้งหมด: ${total.score}/${total.maxScore}",
+                    totalScore: t("คะแนนรวมทั้งหมด: ${total.score}/${total.maxScore}",
+                        "Total score: ${total.score}/${total.maxScore}"),
                   ),
                   
                   const SizedBox(height: 30),
@@ -122,7 +127,7 @@ class EndPage extends StatelessWidget {
                     onPressed: () {
                       Navigator.pushNamed(context, '/homepage');
                     },
-                    child: const Text("ทำแบบทดสอบอีกครั้ง"),
+                    child: Text(t("ทำแบบทดสอบอีกครั้ง", "Take the test again")),
                   ),
                 ],
               ),
