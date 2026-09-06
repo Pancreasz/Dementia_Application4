@@ -141,11 +141,9 @@ class SubtestSessionController extends ChangeNotifier {
     // Mirror the voice path. A subtest whose stimulus cannot sound was never
     // administered — without this, total audio failure records a real 0/1,
     // asserting the patient failed a task they never heard.
-    for (final digit in spec.sequence!.split('').toSet()) {
-      if (!await _assetExists(digitAssetFor(digit, language: AppLanguage.current))) {
-        _complete(SubtestOutcome.skippedFor(spec.id));
-        return;
-      }
+    if (!await _assetExists(vigilanceAssetFor(language: AppLanguage.current))) {
+      _complete(SubtestOutcome.skippedFor(spec.id));
+      return;
     }
     if (abandoned()) return;
 

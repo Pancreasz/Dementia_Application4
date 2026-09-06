@@ -298,13 +298,13 @@ void main() {
       expect(controller.outcome!.maxScore, 1);
     });
 
-    // Mirrors the voice-path safety net: if no digit audio can play, the
+    // Mirrors the voice-path safety net: if the digit audio cannot play, the
     // patient hears nothing and taps nothing, and scoring must not record a
     // real 0/1 for a task never administered.
-    testWidgets('skips vigilance when a digit asset is missing', (tester) async {
+    testWidgets('skips vigilance when the stimulus is missing', (tester) async {
       final controller = build(
         spec('vigilance'),
-        missingAssets: {'assets/moca/audio/digit-1.wav'},
+        missingAssets: {'assets/moca/audio/vigilance.wav'},
       );
 
       final begun = controller.begin();
@@ -352,6 +352,10 @@ class _RecordingPlayback implements AudioPlayback {
   }
 
   @override
+  Future<void> load(String assetPath) async => order.add('load:$assetPath');
+  @override
+  Future<void> start() async => order.add('start');
+  @override
   Future<void> stop() async {}
   @override
   Future<void> dispose() async {}
@@ -388,6 +392,10 @@ class _GatedPlayback implements AudioPlayback {
 
   @override
   Future<void> play(String assetPath) => gate.future;
+  @override
+  Future<void> load(String assetPath) async {}
+  @override
+  Future<void> start() => gate.future;
   @override
   Future<void> stop() async {}
   @override

@@ -47,6 +47,12 @@ class _HangingAudioPlayback implements AudioPlayback {
   Future<void> play(String assetPath) => Completer<void>().future;
 
   @override
+  Future<void> load(String assetPath) async {}
+
+  @override
+  Future<void> start() => Completer<void>().future;
+
+  @override
   Future<void> stop() async {
     stopped = true;
   }

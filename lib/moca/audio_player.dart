@@ -7,6 +7,20 @@ abstract class AudioPlayback {
   /// playback is genuinely over.
   Future<void> play(String assetPath);
 
+  /// Fetches and decodes [assetPath] without sounding it, so a later [start]
+  /// begins more or less immediately.
+  ///
+  /// Split from [start] for Vigilance, where the moment sound begins is also
+  /// the origin every tap offset is measured against. Loading on the way in
+  /// would put a mobile browser's fetch and decode — which can run past a
+  /// second — between "we started the clock" and "the patient heard anything",
+  /// and every tap in the run would score against the wrong digit.
+  Future<void> load(String assetPath);
+
+  /// Starts the source put in place by [load]. Resolves once playback has
+  /// actually begun, NOT when it ends.
+  Future<void> start();
+
   Future<void> stop();
 
   Future<void> dispose();
@@ -15,13 +29,22 @@ abstract class AudioPlayback {
 class DeviceAudioPlayback implements AudioPlayback {
   final AudioPlayer _player = AudioPlayer();
 
+  /// audioplayers' AssetSource is rooted at `assets/`, so strip the prefix that
+  /// pubspec.yaml and the rest of this codebase use.
+  static String _source(String assetPath) => assetPath.startsWith('assets/')
+      ? assetPath.substring('assets/'.length)
+      : assetPath;
+
+  @override
+  Future<void> load(String assetPath) =>
+      _player.setSource(AssetSource(_source(assetPath)));
+
+  @override
+  Future<void> start() => _player.resume();
+
   @override
   Future<void> play(String assetPath) async {
-    // audioplayers' AssetSource is rooted at `assets/`, so strip the prefix
-    // that pubspec.yaml and the rest of this codebase use.
-    final source = assetPath.startsWith('assets/')
-        ? assetPath.substring('assets/'.length)
-        : assetPath;
+    final source = _source(assetPath);
 
     await _player.stop();
 
@@ -52,6 +75,16 @@ class FakeAudioPlayback implements AudioPlayback {
   @override
   Future<void> play(String assetPath) async {
     calls.add('play:$assetPath');
+  }
+
+  @override
+  Future<void> load(String assetPath) async {
+    calls.add('load:$assetPath');
+  }
+
+  @override
+  Future<void> start() async {
+    calls.add('start');
   }
 
   @override

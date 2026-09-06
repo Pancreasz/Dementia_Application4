@@ -22,8 +22,11 @@ const List<SubtestSpec> kVoiceSubtests = [
     instructionTh: 'ฟังตัวเลขต่อไปนี้ แล้วพูดทวนตามลำดับ',
     instructionEn: 'Listen to the following numbers, then repeat them in the same order.',
     maxScore: 1,
+    // Both built by tool/build_sequences.py from the per-digit recordings, one
+    // digit per second. Regenerate after changing expectedSequence — the file
+    // is what the patient hears and this string is what they are scored on.
     stimulusAsset: 'assets/moca/audio/digits-forward.wav',
-    stimulusAssetEn: 'assets/moca/audio/eng-digits-forward.m4a',
+    stimulusAssetEn: 'assets/moca/audio/eng-digits-forward.wav',
     expectedSequence: '21854',
     timeLimitSec: 7,
   ),
@@ -34,8 +37,9 @@ const List<SubtestSpec> kVoiceSubtests = [
     instructionEn: 'Listen to the following numbers, then repeat them in reverse order.',
     maxScore: 1,
     stimulusAsset: 'assets/moca/audio/digits-backward.wav',
-    stimulusAssetEn: 'assets/moca/audio/eng-digits-backward.m4a',
-    // The patient hears 742 and must say it reversed.
+    stimulusAssetEn: 'assets/moca/audio/eng-digits-backward.wav',
+    // The patient hears 742 and must say it reversed. build_sequences.py holds
+    // the heard order; it is this reversed, not a copy of it.
     expectedSequence: '247',
     timeLimitSec: 7,
   ),
@@ -75,7 +79,7 @@ const List<SubtestSpec> kVoiceSubtests = [
     instructionEn: 'Listen to the following sentence, then repeat it back exactly.',
     maxScore: 1,
     stimulusAsset: 'assets/moca/audio/sentence-1.wav',
-    stimulusAssetEn: 'assets/moca/audio/eng-sentence-1.m4a',
+    stimulusAssetEn: 'assets/moca/audio/eng-sentence-1.wav',
     expectedSentence: 'ฉันรู้ว่าจอมเป็นคนเดียวที่มาช่วยงานวันนี้',
     expectedSentenceEn: 'How can a clam cram in a clean cream can',
     timeLimitSec: 20,
@@ -87,7 +91,7 @@ const List<SubtestSpec> kVoiceSubtests = [
     instructionEn: 'Listen to the following sentence, then repeat it back exactly.',
     maxScore: 1,
     stimulusAsset: 'assets/moca/audio/sentence-2.wav',
-    stimulusAssetEn: 'assets/moca/audio/eng-sentence-2.m4a',
+    stimulusAssetEn: 'assets/moca/audio/eng-sentence-2.wav',
     expectedSentence: 'แมวมักจะซ่อนตัวอยู่หลังเก้าอี้เมื่อมีหมาอยู่ในห้อง',
     expectedSentenceEn: 'The thirty-three thieves thought that they thrilled the throne.',
     timeLimitSec: 20,
