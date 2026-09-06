@@ -18,7 +18,12 @@ Domain terms are in [CONTEXT.md](CONTEXT.md).
 app.py            FastAPI routes only — no inference
 clock.py          DenseNet load + predict (preprocessing lives here)
 asr.py            Whisper CT2 load + transcribe
-models/           gitignored — CT2 int8 output of scripts/convert_model.py
+models/           gitignored — CT2 int8 output of scripts/convert_model.py,
+                  including tokenizer.json (fetched by that script so
+                  faster-whisper never needs Hugging Face Hub access at
+                  model-load time — a missing tokenizer.json makes /transcribe
+                  silently require internet on every restart, see the
+                  script's docstring)
 moca_densenet.pth gitignored — restore via scripts/restore_weights.py
 scripts/          restore_weights, convert_model, validate_clock
 tests/            monkeypatched — no weights load, no downloads

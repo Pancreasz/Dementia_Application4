@@ -7,7 +7,7 @@ import '../scoring/asr_segment.dart';
 import 'backend_config.dart';
 
 /// Same host clock.dart already uploads to. Only the path differs.
-const String kDefaultAsrEndpoint = kTranscribeEndpoint;
+final String kDefaultAsrEndpoint = kTranscribeEndpoint;
 
 class AsrException implements Exception {
   final String message;

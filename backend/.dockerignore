@@ -1,0 +1,21 @@
+# Dev/test-only — not needed inside the image.
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+scripts/
+docs/
+handout.md
+CONTEXT.md
+README.md
+pytest.ini
+requirements-dev.txt
+requirements-convert.txt
+clock_0.png
+clock_1.png
+clock_2.png
+clock_3.png
+.gitignore
+Dockerfile
+.dockerignore

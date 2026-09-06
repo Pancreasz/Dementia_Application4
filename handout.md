@@ -2,11 +2,11 @@
 
 Continuing this project in a new session? Start here.
 
-*Last updated 2026-08-19, after a real clock drawing scored 0/3 regardless of
-quality (fixed), a real orientation session under-scored a correct date and
-year (fixed), the nine voice-subtest screens rendered flush left instead of
-centered (fixed), and the top-level README was rewritten with real run
-instructions. All of it is committed and pushed to `origin/main`.*
+*Last updated 2026-08-27, after adding an English administration mode
+(language toggle on the home page, English content for every section, and
+three real scoring bugs found and fixed from an actual English test session)
+on top of the 2026-08-19 clock/orientation/web-target work. All of it is
+committed and pushed to `origin/main` in a single commit, `04783fd`.*
 
 ## What this project is
 
@@ -25,8 +25,9 @@ There are two repos side by side under `D:\moca_ad\`:
 
 ## Current state
 
-**29 of 30 MoCA points implemented. 219 tests passing. `flutter analyze` has no
-errors** (26 pre-existing warnings/infos in older code).
+**29 of 30 MoCA points implemented, in Thai or English. 244 tests passing.
+`flutter analyze` has no errors** (26 pre-existing warnings/infos in older
+code).
 
 The 30th point is Cube copy, administered on paper by the owner's teammates —
 deliberately out of scope.
@@ -44,6 +45,128 @@ deliberately out of scope.
 | **Verbal Fluency** | **1** | new — voice, 60 s |
 | **Abstraction ×2** | **2** | new — voice |
 | **Orientation** | **6** | new — voice |
+
+## English administration mode — added 2026-08-27
+
+The test can now be given in English. Two TH/EN buttons on the home page
+(`lib/pages/home.dart`) set `AppLanguage.current` before the patient starts —
+nothing switches language mid-session, so every page just reads it once at
+build time rather than listening for changes.
+
+**Covers all 10 sections**, not just the nine voice subtests:
+
+| | |
+|---|---|
+| `lib/moca/app_language.dart` | The switch itself: `AppLanguage.current` (`Language.th`/`Language.en`), the `t(th, en)` helper every page calls inline, plus `sectionLabel`/`categoryLabel` lookup tables for the handful of strings that live outside per-page literals (MoCA section headings, the `SessionTotal.category` values pinned by Thai text in their own tests). |
+| `lib/moca/subtest_spec.dart` | Every subtest now carries an English counterpart of each language-dependent field — `instructionEn`, `stimulusAssetEn`, `expectedSentenceEn`, `initialLetterEn` — plus `.instruction`/`.stimulusAssetForLanguage`/`.expectedSentenceForLanguage`/`.initialLetterForLanguage` getters that resolve against the current language. `expectedSequence` (digit span) has no English variant: digits are digits regardless of language, only the narrating audio differs. |
+| `lib/moca/subtests.dart` | The English content itself. Verbal fluency asks for the letter **F** (standard English MoCA administration) instead of ก. Sentence repetition's two English targets are tongue-twisters supplied by the project owner: "How can a clam cram in a clean cream can" and "The thirty-three thieves thought that they thrilled the throne." |
+| `lib/moca/digit_sequence_player.dart` | `digitAssetFor(digit, language:)` resolves to `eng-digit-N.mp3` in English mode instead of `digit-N.wav` — used both by Vigilance's per-digit taps and Digit Span's stimulus lookup. |
+| `lib/moca/session_config.dart` | `SessionConfig.place`/`.province` are now language-aware getters ("Hospital"/"Bangkok" in English, unchanged in Thai) rather than `static const`. |
+| `lib/pages/*.dart` (all of them) | Every patient-facing string wrapped in `t('...', '...')`. Two pages needed more than string swaps: `animal.dart`'s naming-test answer key is a language-aware map (`lion`/`camel`/`rhino` vs `สิงโต`/`อูฐ`/`แรด`), and `larksen.dart`'s trail-making checkpoints alternate 1-A-2-B... instead of 1-ก-2-ข... in English mode. |
+
+English audio ships as mp3/m4a (`eng-digit-*.mp3`, `eng-digits-forward/backward.m4a`,
+`eng-sentence-1/2.m4a`) alongside the existing Thai wav files in
+`assets/moca/audio/` — no pubspec change needed, the folder is already
+wildcarded in. `audioplayers`' `AssetSource` plays either format identically.
+
+**Scoring had to change too, not just the UI**, because English speech
+doesn't map onto Thai-specific matching logic:
+
+- `scoreAbstraction` (`lib/scoring/abstraction.dart`) takes a `language`
+  parameter and picks between two term tables: `vehicle`/`transportation` for
+  train–bicycle, `measuring instrument`/`measurement`/`measure` for
+  watch–ruler — literal translations of the existing Thai accepted terms.
+- `scoreOrientation` (`lib/scoring/orientation.dart`) takes a `language`
+  parameter and swaps in English day/month name lists for the `day`/`month`
+  items. The year item **also changed shape** — see the bug below.
+- `HttpAsrClient.transcribe` now receives `language: 'en'` (via
+  `session_controller.dart`, threaded from `AppLanguage.current`) instead of
+  always defaulting to `'th'`. This is the one point where the fix is only as
+  good as the backend model — see "Confirmed backend limitation" below.
+
+### Three real scoring bugs, found from an actual English test session
+
+The owner ran a live English session immediately after this shipped and hit
+three wrong scores. All three are now fixed and covered by regression tests;
+none were caught by the initial test suite because there was no real English
+speech to test against yet — the same pattern as the 2026-08-18/19 Thai
+scoring bugs the console log surfaced.
+
+**1. Digit Span Forward scored 0 for a correct answer.** The patient's
+"Two, one, eight, five, four" transcribed correctly, but `extractDigitSequence`
+(`lib/scoring/matchers.dart`) only recognized Thai digit words and Arabic
+numerals — spelled-out English number words extracted as nothing at all, so
+`spoken=''` never equals `expected=21854`.
+
+Fix: added `_englishDigitWords` (zero-nine) and merged it with the existing
+Thai table into one `_digitWordEntries` list the scanner checks at every
+position, same as it already did for Thai. `_thaiDigitEntries` (the
+Thai-only version of that list) is gone — nothing else referenced it.
+
+**2. Orientation's year scored 0 for a correct answer.** The patient
+correctly said "two thousand and twenty-six" (2026, Gregorian) — the natural
+way an English speaker states the year — but the scorer only ever accepted
+the Buddhist Era year (2569), a hard assumption made when English mode was
+first built without checking it against a real patient.
+
+Fix: in English mode only, `scoreOrientation`'s `year` item now accepts
+*either* the Buddhist Era year or the plain Gregorian year
+(`referenceDate.year + 543` OR `referenceDate.year`). Thai mode is unchanged
+— still Buddhist-Era-only, per the Thai MoCA form.
+
+**3. Sentence Repetition 2's similarity dropped from a spoken-number
+mismatch, not a real error.** The patient repeated the sentence correctly,
+but Whisper transcribed "thirty-three" (the sentence's written form) as
+digits: "The 33 thieves thought that they thrilled the throne." That
+single-token difference cost enough Levenshtein distance against a ~65
+character sentence to matter.
+
+Fix: `sentence_repetition.dart` now runs `_spellOutNumbersAsDigits` — a
+small English number-word-to-digit converter (compound tens+ones like
+"thirty-three" first, then bare tens, then teens, then ones, in that order
+so "eight" can't match inside "eighty" and "nine" can't match inside
+"nineteen" before the longer words get their turn) — on both the transcript
+and the expected sentence before comparing. Digit and word renderings of the
+same number now compare equal regardless of which way Whisper happened to
+render it.
+
+### Confirmed backend limitation — Whisper doesn't actually understand English
+
+The same live session also produced three failures that are **not**
+frontend bugs, and not fixable without backend changes:
+
+- **Verbal fluency transcribed English "F" words as Thai script** (heard:
+  "ฟอก ฟิงก์เกอร์ 5 4 ฟีต ฟิคซ์ เฟสบุ๊ค..." — Thai phonetic renderings of
+  English words, not English text), so every word was correctly rejected by
+  the initial-letter check for not starting with a Latin `f` — the scorer
+  behaved correctly against what it was given, but what it was given was
+  wrong.
+- **Abstraction hallucinated entirely unrelated text** ("Thank you for
+  watching, please leave a like...", "Nationman") for short, clear English
+  answers like "vehicle" and "measurement".
+- **"Hospital" looped six times** in one orientation transcript
+  ("Hospitality Hospitality Hospitality...") — the same class of looping
+  bug fixed for Thai digit span on 2026-08-18, resurfacing because
+  `backend/asr.py`'s `repetition_penalty=1.10` was tuned specifically
+  against Thai digit clips.
+
+**Root cause:** the backend's ASR model is `biodatlab/whisper-th-medium-combined`
+(`backend/asr.py`), fine-tuned specifically for Thai. Passing
+`language='en'` through to it (see above) does not make it a working English
+recognizer — the fine-tuning has pulled it away from whatever general
+multilingual behavior the base Whisper checkpoint had. **English mode is
+demo-quality for voice subtests until the backend gets a real English (or
+general multilingual) model** — digit span, sentence repetition and
+orientation's day/month/date items score reasonably because they lean on
+digits and short fixed phrases the model can still get partially right, but
+verbal fluency and abstraction are not currently trustworthy in English.
+This was flagged as a risk before it was confirmed; it is now a known,
+reproduced limitation rather than a guess.
+
+Fixing this properly means adding a second, general-purpose multilingual
+Whisper model to the backend for English sessions (or replacing the Thai
+fine-tune with one) — a separate, larger piece of backend work, not done
+here.
 
 ## Backend wiring — done 2026-08-18
 
@@ -576,6 +699,12 @@ Full detail in **`design_docs/CONTENT-STATUS.md`**. The ones that bite:
 - **`SessionConfig.place`/`.province` cannot be injected.** `scoreItem` reads the
   statics directly, so a settings screen must change `scoreItem`'s signature, not
   just `session_config.dart`.
+- **English mode is not clinically trustworthy yet for voice subtests that
+  need real English speech recognition.** See "Confirmed backend limitation"
+  above — the backend's ASR model is Thai-only under the hood regardless of
+  the `language` flag sent to it. Digit span, sentence repetition and most of
+  orientation hold up reasonably (they lean on digits/short fixed phrases);
+  verbal fluency and abstraction do not.
 
 ## Key documents
 
@@ -603,7 +732,7 @@ answers questions from the existing graph without rebuilding it.
 
 ```powershell
 $env:PATH = "C:\Users\pumasin.p\dev\flutter\bin;$env:PATH"
-flutter test                     # 219 tests, ~15 s
+flutter test                     # 244 tests, ~15 s
 flutter test --reporter expanded # use this, not the default, when you need a
                                   # reliable line-per-test log to grep or
                                   # pipe through `tail` — the default compact
@@ -616,10 +745,13 @@ flutter run -d windows   # see gotcha 7 — has never built
 ## Git state
 
 On `main`, **working tree is clean and pushed** — `main` and `origin/main`
-match. The clock/orientation/backend-wiring/web-target work from earlier
-2026-08-19 landed in `67a8daa` ("fix the clock and centered the voice test
-instruction," which also carries the flush-left fix above) and `ec4be44`
-("readme.md"). `docs/` still carries its usual pre-existing build drift (see
-gotcha 2/3) but nothing is staged or dirty right now. Still true: never
-`git add -A`/`git add .` (gotcha 2) — name paths explicitly when you do
-commit next.
+match, at `04783fd` ("added eng version"), which carries the entire English
+mode plus the three scoring bug fixes above. Earlier
+clock/orientation/backend-wiring/web-target work from 2026-08-19 is in
+`67a8daa` and `ec4be44` beneath it. `docs/` still carries its usual
+pre-existing build drift (see gotcha 2/3) but nothing is staged or dirty
+right now. **`docs/` has not been rebuilt since `04783fd` landed** — the
+published GitHub Pages site does not yet include English mode; run the
+`flutter build web -o docs --base-href "/Dementia_Application4/"` command
+under gotcha 3 before expecting it live. Still true: never `git add -A`/`git
+add .` (gotcha 2) — name paths explicitly when you do commit next.
