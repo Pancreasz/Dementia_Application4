@@ -13,8 +13,51 @@ import '../moca/app_language.dart';
 ///
 /// The disclaimer is shown FIRST, above the activities, rather than as a
 /// footnote. A reader who stops halfway down the page has still read it.
-class ActivitiesPage extends StatelessWidget {
-  const ActivitiesPage({super.key});
+///
+/// [focusDomainId] — passed as the route argument when the analysis page links
+/// here for one area — scrolls that domain into view and outlines it. That is
+/// not personalisation creeping back in: the patient chose the area by tapping
+/// it, every domain is still present and in the same order, and the page shows
+/// exactly the same content whether or not one is focused. What is ruled out is
+/// the app picking domains on the patient's behalf from their scores.
+class ActivitiesPage extends StatefulWidget {
+  final String? focusDomainId;
+
+  const ActivitiesPage({super.key, this.focusDomainId});
+
+  @override
+  State<ActivitiesPage> createState() => _ActivitiesPageState();
+}
+
+class _ActivitiesPageState extends State<ActivitiesPage> {
+  final Map<String, GlobalKey> _domainKeys = {
+    for (final domain in kActivityDomains) domain.id: GlobalKey(),
+  };
+
+  String? _focusId;
+  bool _scrolled = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The route argument, when the analysis page linked to one area. Read here
+    // rather than in initState because ModalRoute needs the inherited widget.
+    final argument = ModalRoute.of(context)?.settings.arguments;
+    _focusId = widget.focusDomainId ?? (argument is String ? argument : null);
+
+    if (_focusId == null || _scrolled) return;
+    _scrolled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final key = _domainKeys[_focusId];
+      final target = key?.currentContext;
+      if (target == null || !mounted) return;
+      Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 400),
+        alignment: 0.1,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +108,11 @@ class ActivitiesPage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               for (final domain in kActivityDomains) ...[
-                _DomainCard(domain: domain),
+                _DomainCard(
+                  key: _domainKeys[domain.id],
+                  domain: domain,
+                  highlighted: domain.id == _focusId,
+                ),
                 const SizedBox(height: 12),
               ],
             ],
@@ -170,14 +217,24 @@ class _GeneralCard extends StatelessWidget {
 class _DomainCard extends StatelessWidget {
   final ActivityDomain domain;
 
-  const _DomainCard({required this.domain});
+  /// Outlined when the reader arrived here from this domain on the analysis
+  /// page. An outline, not a reordering or a filter — the list stays the same
+  /// for everyone.
+  final bool highlighted;
+
+  const _DomainCard({super.key, required this.domain, this.highlighted = false});
 
   @override
   Widget build(BuildContext context) {
     final note = domain.note;
     return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: highlighted ? 4 : 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: highlighted
+            ? BorderSide(color: Colors.blue.shade700, width: 2)
+            : BorderSide.none,
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

@@ -30,15 +30,22 @@ SubtestOutcome scoreVigilance(
   }
 
   var hits = 0;
-  var misses = 0;
-  var falseTaps = 0;
   final tapLatencies = <int>[];
+
+  // WHERE the errors fell, not just how many. "Errors concentrated in the last
+  // third" is the vigilance-decrement pattern — the patient could do the task
+  // but could not keep doing it — and it is invisible in a count. Positions are
+  // indices into `sequence`, which is raw data: any binning of them (thirds,
+  // halves, a trend line) is left to whoever reads them, so a later change of
+  // mind about the right window does not need the patient back.
+  final missPositions = <int>[];
+  final falseTapPositions = <int>[];
 
   for (var index = 0; index < digits.length; index++) {
     final tap = firstTapByWindow[index];
     if (digits[index] == target) {
       if (tap == null) {
-        misses += 1;
+        missPositions.add(index);
       } else {
         hits += 1;
         // Measured from this target's own onset, so the value is a reaction
@@ -46,11 +53,11 @@ SubtestOutcome scoreVigilance(
         tapLatencies.add(tap - index * intervalMs);
       }
     } else if (tap != null) {
-      falseTaps += 1;
+      falseTapPositions.add(index);
     }
   }
 
-  final errors = misses + falseTaps;
+  final errors = missPositions.length + falseTapPositions.length;
 
   return SubtestOutcome(
     subtestId: 'vigilance',
@@ -59,9 +66,12 @@ SubtestOutcome scoreVigilance(
     detail: {
       'errors': errors,
       'hits': hits,
-      'misses': misses,
-      'falseTaps': falseTaps,
+      'misses': missPositions.length,
+      'falseTaps': falseTapPositions.length,
       'tapLatencies': tapLatencies,
+      'missPositions': missPositions,
+      'falseTapPositions': falseTapPositions,
+      'sequenceLength': digits.length,
     },
   );
 }

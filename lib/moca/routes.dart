@@ -10,6 +10,11 @@ String routeFor(String subtestId) => '/$subtestId';
 /// vigilance hands off to Serial 7s, and abstraction-2 to Delayed Recall.
 /// MoCA groups Digit Span and Vigilance with Serial 7s under Attention, and
 /// puts Orientation last, after Delayed Recall.
+///
+/// Orientation — the last subtest — hands off to the per-domain analysis, not
+/// straight to the score. The single number is the thing everyone remembers,
+/// and a patient shown it first reads everything after it as commentary on a
+/// verdict already delivered. `/analysis` continues to `/endpage`.
 const Map<String, String> _nextRoute = {
   'digit-span-forward': '/digit-span-backward',
   'digit-span-backward': '/vigilance',
@@ -19,7 +24,7 @@ const Map<String, String> _nextRoute = {
   'verbal-fluency': '/abstraction-1',
   'abstraction-1': '/abstraction-2',
   'abstraction-2': '/reorderimages',
-  'orientation': '/endpage',
+  'orientation': '/analysis',
 };
 
 String nextRouteAfter(String subtestId) {

@@ -130,13 +130,34 @@ directly; `lib/moca/recording_sink.dart` picks a file target on native and a
 Blob on web, so voice subtests run in the browser. Web is now the primary
 target — the published build in `docs/` is what patients use.
 
-**g. `transcript` and `detail` on `SubtestOutcome` are written but never
-read.** Half-addressed. They now survive the process — `SubtestOutcome.toJson`
-writes both, and item **e** persists the record — so the data no longer dies
-when the tab closes. What still does not exist is a **review surface**: nothing
-in the app displays a transcript, a similarity, or a raw event trace back to a
-human. Until something does, the three unvalidated thresholds below remain
-unvalidatable in practice, because nobody can see what they decided.
+**g. ~~`transcript` and `detail` on `SubtestOutcome` are written but never
+read.~~ FIXED.** `lib/pages/analysis.dart` is the review surface, computed in
+`lib/analysis/domain_analysis.dart` and reached between the last subtest and
+the score (`nextRouteAfter('orientation')` is now `/analysis`, which continues
+to `/endpage`). It shows, per MoCA domain, a three-level status **taken from
+the points and from nothing else**, with the stored measurements beneath it as
+description: the sentence-repetition similarity against its threshold, the
+abstraction similarity map and which of the three failure shapes it was, digit
+span's transposition-vs-omission, vigilance's misses and false taps counted
+separately with their positions, orientation's per-field results, and the
+delayed-recall arrangement.
+
+`DomainAnalysis.status` is a function of `score` and `maxScore` and cannot see
+an observation — that separation is the whole point and there is a test on it
+(*"full marks stay full marks however bad the measurements look"*). Three tones
+exist: descriptive, **caution** (a statement about the app — an unvalidated
+threshold, an ASR artefact, a known defect — never about the patient), and
+**not captured**, which is shown rather than left blank because an absent
+measurement and an absent finding are different claims.
+
+Two capture gaps were closed to make it work, both raw rather than derived:
+`scoreVigilance` now records `missPositions`/`falseTapPositions` alongside the
+counts, and the delayed-recall page records the arrangement the patient
+produced instead of discarding it the moment the count was taken.
+
+What is still not captured, and says so on the page: trail-making move times,
+naming keystrokes (needs the in-app keyboard), and per-subtraction timing on
+Serial 7s.
 
 **g2. Three unvalidated thresholds, now.** Tracked together because the count
 went up rather than down:
@@ -160,14 +181,80 @@ adopted — that fits invented data with a second invented constant.
 Mitigating this, abstraction stores the **full similarity map** for every
 answer (each accepted term and each stimulus word), plus the threshold applied
 and which rule failed. That is what makes re-choosing the number from real
-sessions possible without re-running a patient. It is also exactly the material
-the missing review surface in **g** would display.
+sessions possible without re-running a patient.
+
+All three thresholds are now **visible** on the analysis page (**g**), each
+next to the similarity or count it was applied to, and a score that fell within
+0.05 of its threshold is labelled there as an artefact of the threshold rather
+than a finding about the patient. Visible is not validated — the numbers are
+still guesses — but a clinician can now see which decisions they made, which is
+the precondition for ever replacing them with measured ones. Sentence
+repetition's threshold moved from a private constant into
+`kSentenceSimilarityThreshold` and into every outcome's `detail`, so the page
+states the number a score was actually measured against rather than repeating
+it in its own text where it could drift.
 
 **h. `SessionConfig.place`/`.province` cannot be injected.**
 `lib/scoring/score_item.dart` reads the statics directly
 (`SessionConfig.place`, `SessionConfig.province`), so the values cannot be
 overridden per session even in a test. Whoever builds the settings screen
 must change `scoreItem`'s signature, not just `session_config.dart`.
+
+**j. The ASR model changed on 2026-09-07 and the swap is only partly
+characterised.** `backend/asr.py` now defaults to
+`scb10x/typhoon-whisper-large-v3` (Thai fine-tune of whisper-large-v3, CT2
+float16 on disk, loaded as int8) in place of
+`biodatlab/whisper-th-medium-combined`. What was actually measured, on the four
+generated stimulus clips — **which are TTS, not patient speech, and are never
+sent to `/transcribe` in a real session** — is in the table below. Read it as a
+proxy, not as validation; item **g2**'s point stands that nothing here has been
+checked against a real voice.
+
+| | typhoon large-v3 | whisper-th medium |
+|---|---|---|
+| Load (warm) | 12.7 s | 2.4 s |
+| `digits-forward.wav` | `สองหนึ่งแปดห้าสี่` ✓ | `สอง หนึ่ง แปด ห้า สี่` ✓ |
+| `digits-backward.wav` | `สี่สอง` — **dropped the leading 7** | `เจ็ด สี่ สอง` ✓ |
+| `sentence-1.wav` | exact ✓ | exact ✓ |
+| `sentence-2.wav` | exact ✓ | `มี` for `หมา` ✗ |
+| Per short clip | 19–27 s | 11–18 s |
+
+So it is **not a uniform improvement**: better on sentence repetition, worse on
+one digit clip, and consistently ~1.7x slower. Still inside the client's 180 s
+timeout, and the two pathologies `DEFAULT_TEMPERATURE` and
+`DEFAULT_REPETITION_PENALTY` were introduced to fix (the temperature ladder and
+digit looping) did not return, so those settings carry over unchanged.
+
+**The dropped digit is the model, not the decoding options.** `สี่สอง` came back
+identically under all four of: as-shipped, no repetition penalty, faster-whisper
+defaults (temperature ladder on), and no-speech/logprob thresholds disabled.
+There is no setting to turn back. On the isolated ~1-second `digit-N.wav`
+stimuli it is worse still: typhoon returns **empty** for `digit-2` and
+`digit-4`, and hallucinates `"TODAY"` for `digit-7`, where the medium model's
+2026-08-18 smoke test at least got 2/7/0 right.
+
+**This is the risk to watch, and it is not yet measured where it counts.** Every
+clip above is TTS stimulus. But a patient's *real* digit-span answer is also a
+short utterance — three to five digits, two or three seconds, the exact length
+where typhoon is dropping and blanking here. Digit span is scored on exact
+equality (`scoreDigitSpan`), so one dropped leading digit is the whole point.
+Before this model is trusted for a real session, record a human saying "เจ็ด สี่
+สอง" and check it comes back with all three digits. If it does not, revert with
+`MOCA_ASR_MODEL_DIR` — the medium build is still on disk.
+
+Two further things follow that are not done:
+
+- **Nothing scores worse today because of the dropped digit** — that clip is
+  what the patient *hears*, not what is transcribed. But it is the only
+  same-input comparison available, and it points the wrong way.
+- **English is not fixed.** Typhoon is trained on ~11,000 hours of Thai and is
+  a Thai-only fine-tune, exactly like the model it replaced. Every English
+  finding in `handout.md` ("English mode is demo-quality") still holds. If
+  English mode matters, this change was not the fix for it.
+- **Both models are still on disk** (`models/whisper-th-ct2`, 739 MB, and
+  `models/typhoon-large-v3-ct2`, 2.9 GB). Reverting is
+  `MOCA_ASR_MODEL_DIR=models/whisper-th-ct2` with no rebuild; `COPY models/` in
+  the Dockerfile takes both unless one is pruned first.
 
 **i. The Orientation date bug fixed in this branch also exists upstream**
 in the reference project at `ad_hw/src/main/scoring/orientation.js`

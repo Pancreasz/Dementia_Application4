@@ -39,7 +39,7 @@ client, in one history, so that cannot happen again.
 | Clock model weights | **Recovered** — `moca_densenet.pth`, 28,440,806 bytes |
 | Clock preprocessing | **Still assumed, not proven** — the original training script is lost. Run `scripts/validate_clock.py` before trusting a score. |
 | Clock validation images | **Provided** — `clock_0.png` … `clock_3.png`, one per score |
-| ASR model | `biodatlab/whisper-th-medium-combined`, converted to CT2 int8 by `scripts/convert_model.py` |
+| ASR model | `scb10x/typhoon-whisper-large-v3` since 2026-09-07, converted to CT2 float16 by `scripts/convert_model.py` and loaded as int8. Replaced `biodatlab/whisper-th-medium-combined` (still buildable — see that script). |
 | ASR scoring accuracy | **Not validated against real patient speech** — see README |
 | Reference implementation | `ad_hw/sidecar/asr_server.py` — the *working* ASR service this was ported from |
 

@@ -1,11 +1,11 @@
 """Thai speech transcription for POST /transcribe.
 
-A CTranslate2 int8 build of `biodatlab/whisper-th-medium-combined`, run through
+A CTranslate2 build of `scb10x/typhoon-whisper-large-v3`, run through
 faster-whisper on CPU. The model is loaded on a *background thread* so /health
-answers immediately instead of hanging ~10 s on the first request.
+answers immediately instead of hanging on the first request.
 
 This module owns model loading and transcription only. It never constructs the
-model at import time — tests import it and must not trigger an 800 MB load.
+model at import time — tests import it and must not trigger a multi-GB load.
 """
 
 from __future__ import annotations
@@ -16,12 +16,57 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Optional
 
-# Default location of the CT2 int8 model produced by scripts/convert_model.py.
-DEFAULT_MODEL_DIR = os.path.join(os.path.dirname(__file__), "models", "whisper-th-ct2")
+# Default location of the CT2 model produced by scripts/convert_model.py.
+#
+# `scb10x/typhoon-whisper-large-v3` (Thai fine-tune of whisper-large-v3, 32
+# encoder + 32 decoder layers, 128 mel bins) replaced
+# `biodatlab/whisper-th-medium-combined` on 2026-09-07. It is roughly 3x the
+# parameters, so it is slower and needs more RAM — roughly 1.7x per clip, timed
+# side by side in backend/README.md. The previous medium build is NOT deleted;
+# point MOCA_ASR_MODEL_DIR back at models/whisper-th-ct2 to revert without a
+# rebuild.
+#
+# Both the directory and the compute type are environment-overridable because
+# the right trade-off depends on the machine the backend runs on, and that is
+# not knowable from here:
+#   MOCA_ASR_MODEL_DIR, MOCA_ASR_COMPUTE_TYPE
+#
+# The checked-in conversion writes float16. Asking CTranslate2 for `int8` at
+# load time makes it requantize in memory on the way in — that is supported and
+# is what halves the resident footprint, but it is NOT free at load, and it is
+# why the load is slower than the file size alone suggests.
+#
+# STILL THAI-ONLY. This does not fix the English voice subtests documented in
+# handout.md ("English mode is demo-quality"): typhoon is fine-tuned on ~11,000
+# hours of Thai and is pulled away from the base checkpoint's multilingual
+# behaviour in the same way the biodatlab medium model was. English sessions
+# need a separate general-multilingual model, which this change does not add.
+#
+# KNOWN REGRESSION ON SHORT CLIPS. On the generated stimulus audio typhoon drops
+# the leading digit of the 3-second `digits-backward.wav` (`สี่สอง` for 742) and
+# returns an empty transcript for the ~1-second single-digit clips. Reproduced
+# under four decoding configurations including faster-whisper's own defaults, so
+# it is the model rather than the options below. Those clips are TTS stimulus and
+# are never transcribed in a real session, but a patient's digit-span answer is
+# the same *length*, and `scoreDigitSpan` compares for exact equality. See
+# design_docs/CONTENT-STATUS.md item j.
+DEFAULT_MODEL_DIR = os.environ.get(
+    "MOCA_ASR_MODEL_DIR",
+    os.path.join(os.path.dirname(__file__), "models", "typhoon-large-v3-ct2"),
+)
+DEFAULT_COMPUTE_TYPE = os.environ.get("MOCA_ASR_COMPUTE_TYPE", "int8")
 
 # Decoding options, measured against the four stimulus clips on 2026-08-18 after
 # a real session produced both a 0/1 digit span the patient answered correctly
 # and multi-minute waits.
+#
+# CARRIED OVER TO A DIFFERENT MODEL, 2026-09-07. Everything below was measured
+# against `biodatlab/whisper-th-medium-combined`. The switch to typhoon
+# large-v3 was re-checked against the same clips and neither pathology returned
+# — digit span transcribes once, not four times, and no clip hit the ladder —
+# so the settings are kept unchanged. The *reasoning* still refers to
+# measurements taken on the old model; treat the numbers as history and the
+# behaviour as re-verified.
 #
 # temperature=0
 #   faster-whisper defaults to a fallback LADDER (0.0, 0.2, 0.4, 0.6, 0.8, 1.0):
@@ -109,7 +154,7 @@ class AsrModel:
         self,
         model_dir: str = DEFAULT_MODEL_DIR,
         device: str = "cpu",
-        compute_type: str = "int8",
+        compute_type: str = DEFAULT_COMPUTE_TYPE,
         temperature: float = DEFAULT_TEMPERATURE,
         repetition_penalty: float = DEFAULT_REPETITION_PENALTY,
     ):

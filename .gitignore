@@ -9,6 +9,11 @@
 /windows/
 /backend/moca_densenet.pth
 /graphify-out
+/test_hf.py
+/test_sentence.wav
+/typhoon-hf-model/
+/test_ct2.py
+/typhoon-large-v3-ct2/
 .buildlog/
 .history
 .svn/

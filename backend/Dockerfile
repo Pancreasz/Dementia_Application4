@@ -31,16 +31,24 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Routes + inference code. Tests, scripts, and dev-only requirements files
 # are excluded via .dockerignore.
-COPY app.py asr.py clock.py ./
+COPY app.py asr.py clock.py embeddings.py ./
 
 # Model artifacts. Both are gitignored (backend/.gitignore) and must already
 # exist in this build context before running `docker build`:
-#   moca_densenet.pth       <- python scripts/restore_weights.py
-#   models/whisper-th-ct2/  <- python scripts/convert_model.py
-#                              (must include tokenizer.json — that script
-#                              writes it; without it faster-whisper fetches
-#                              the tokenizer from huggingface.co at every
-#                              container start instead of staying offline)
+#   moca_densenet.pth              <- python scripts/restore_weights.py
+#   models/typhoon-large-v3-ct2/   <- python scripts/convert_model.py
+#                                     (must include tokenizer.json — that
+#                                     script writes it; without it
+#                                     faster-whisper fetches the tokenizer from
+#                                     huggingface.co at every container start
+#                                     instead of staying offline)
+#   models/embeddings/             <- populated on first /similarity call, or
+#                                     ahead of time so the image stays offline
+#
+# `COPY models/` takes whatever is in that directory. A machine that has both
+# the typhoon build and the superseded models/whisper-th-ct2 ships both, which
+# is ~3.9 GB of image for no benefit — prune the one you are not serving before
+# building.
 COPY moca_densenet.pth ./
 COPY models/ ./models/
 

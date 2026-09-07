@@ -128,6 +128,34 @@ class _EndPageState extends State<EndPage> {
                   
                   const SizedBox(height: 30),
 
+                  // Back to the per-domain breakdown. It is shown before this
+                  // page in the flow, but a patient reading their score will
+                  // want to go back to what it was made of, and the back
+                  // gesture is not reliable here (this page suppresses its
+                  // leading control).
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.blue.shade900,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 30, vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      side: BorderSide(color: Colors.blue.shade700, width: 1.5),
+                      textStyle: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/analysis');
+                    },
+                    icon: const Icon(Icons.insights_outlined),
+                    label: Text(t("ผลแยกตามด้าน", "Results by area")),
+                  ),
+
+                  const SizedBox(height: 16),
+
                   // Activities. Offered rather than shown automatically, and
                   // worded as activities that engage the domains rather than
                   // anything that follows from this patient's score — the page

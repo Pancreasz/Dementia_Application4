@@ -18,7 +18,7 @@ Domain terms are in [CONTEXT.md](CONTEXT.md).
 app.py            FastAPI routes only — no inference
 clock.py          DenseNet load + predict (preprocessing lives here)
 asr.py            Whisper CT2 load + transcribe
-models/           gitignored — CT2 int8 output of scripts/convert_model.py,
+models/           gitignored — CT2 output of scripts/convert_model.py,
                   including tokenizer.json (fetched by that script so
                   faster-whisper never needs Hugging Face Hub access at
                   model-load time — a missing tokenizer.json makes /transcribe
@@ -46,12 +46,21 @@ python -m venv ../.venv
 ```
 
 That is enough to run `/upload` and the full test suite. `/transcribe` needs the
-ASR model, which is a separate, heavier step (≈1.6 GB download → ≈800 MB int8):
+ASR model, which is a separate, heavier step (≈5.8 GB download → ≈3.1 GB
+float16):
 
 ```bash
 ../.venv/Scripts/python.exe -m pip install -r requirements-convert.txt
 ../.venv/Scripts/python.exe scripts/convert_model.py
 ```
+
+The model is `scb10x/typhoon-whisper-large-v3`, a Thai fine-tune of
+whisper-large-v3, since 2026-09-07. It replaced
+`biodatlab/whisper-th-medium-combined`, which is a third of the size and still
+builds — see `scripts/convert_model.py`'s docstring for the three environment
+variables that rebuild it, and set `MOCA_ASR_MODEL_DIR=models/whisper-th-ct2` to
+run against it. **It is still a Thai-only fine-tune**, so it does not fix the
+English voice subtests (`handout.md`).
 
 ## Run
 
@@ -109,15 +118,29 @@ scores 4/4. If none does, it exits non-zero — do not ship the closest fit.
 
 ## Latency (ASR)
 
-Whisper-medium int8 on CPU is ≈30–120 s for a 60 s clip; Verbal Fluency's
-recording is exactly 60 s. The Flutter client's timeout is raised toward 180 s
-and the scoring screen has a Skip control. Faster transcription (smaller model,
-GPU, streaming) is real user value if pursued later.
+Whisper on CPU is tens of seconds for a 60 s clip; Verbal Fluency's recording is
+exactly 60 s. The Flutter client's timeout is raised toward 180 s and the
+scoring screen has a Skip control. Faster transcription (smaller model, GPU,
+streaming) is real user value if pursued later.
 
-Measured on this machine (2026-08-18, CPU, int8): model **load 37–102 s**
-(warm disk cache vs cold — it is a one-time startup cost, and `/health` reports
-`loading` until it finishes), and **≈12 s per short clip** (short clips still pay
-Whisper's fixed 30 s-window decode cost). Well within the 180 s client timeout.
+Measured on this machine, same clips, both models, CPU, `compute_type="int8"`:
+
+| | typhoon large-v3 (current) | whisper-th medium (previous) |
+|---|---|---|
+| Load, cold / warm | 17.1 s / 12.7 s | — / 2.4 s |
+| Short clip (8 s audio) | 19–21 s | 11–12 s |
+| Sentence clip | 25–27 s | 14–18 s |
+| `vigilance.wav` (29 digits) | 40 s | — |
+
+Short clips still pay Whisper's fixed 30 s-window decode cost, which is why an
+8-second clip is not proportionally faster than a 30-second one. Everything here
+is well inside the 180 s client timeout, but the current model is roughly 1.7x
+the previous one per clip — budget for that on slower hardware. The earlier
+figure of "load 37–102 s" was the medium model on a cold disk cache; the loads
+above were taken back to back on a warm one and are not comparable to it.
+
+Accuracy on those same clips is **mixed, not uniformly better** — see
+`design_docs/CONTENT-STATUS.md` item **j** for the side-by-side.
 
 ## ASR accuracy is NOT validated
 

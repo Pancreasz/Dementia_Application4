@@ -10,7 +10,11 @@ import 'subtest_outcome.dart';
 /// 0.9 is a judgement call, not a validated figure. It tolerates roughly one
 /// wrong character in ten. Revisit it once real Thai speech has been run
 /// through the endpoint — until then, treat this point as provisional.
-const _acceptThreshold = 0.9;
+///
+/// Public and written into every outcome's `detail` so the analysis page can
+/// state the threshold a score was measured against rather than repeating the
+/// number in its own text, where it could drift away from this one silently.
+const double kSentenceSimilarityThreshold = 0.9;
 
 /// Levenshtein distance, normalized to a 0..1 similarity.
 ///
@@ -116,9 +120,13 @@ SubtestOutcome scoreSentenceRepetition(
 
   return SubtestOutcome(
     subtestId: subtestId,
-    score: similarity >= _acceptThreshold ? 1 : 0,
+    score: similarity >= kSentenceSimilarityThreshold ? 1 : 0,
     maxScore: 1,
     transcript: transcript,
-    detail: {'similarity': similarity, 'expected': expectedSentence},
+    detail: {
+      'similarity': similarity,
+      'expected': expectedSentence,
+      'threshold': kSentenceSimilarityThreshold,
+    },
   );
 }

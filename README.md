@@ -14,6 +14,19 @@ scoring and clock scoring both require the backend below. See
 `/transcribe` contract, the test content that must be changed in pairs, and
 known limitations.
 
+## After the test
+
+The last subtest hands off to a **per-domain breakdown**
+(`lib/pages/analysis.dart`), and that page continues to the score. Each MoCA
+domain gets one of three levels, taken from the points scored in it **and from
+nothing else** — the stored measurements appear underneath as description and
+never move anyone into a worse level. Measurements that are not recorded at all
+say so on the page rather than being left blank. From the score page there is
+also an **activities** page (`lib/pages/activities.dart`), worded as activities
+that *engage* a domain rather than improve a score, and deliberately excluding
+anything resembling a MoCA subtest — practising them would contaminate the
+patient's own follow-up screening.
+
 ## Running the web app in Chrome
 
 ### 1. Install Flutter
@@ -72,7 +85,7 @@ flutter run -d chrome --dart-define=MOCA_BACKEND_BASE_URL=https://example.net
 ### Running the tests
 
 ```powershell
-flutter test                     # ~330 tests
+flutter test                     # ~400 tests
 flutter analyze                  # static analysis
 ```
 
@@ -106,9 +119,9 @@ test suite. `/similarity` (abstraction scoring) needs a multilingual
 sentence-transformer, which `pip install -r requirements.txt` brings in and
 which downloads itself (~470 MB) on first startup — no separate step.
 
-`/transcribe` (all voice subtests) additionally needs the ASR
-model — a separate, heavier download (~1.6 GB → ~800 MB int8 after
-conversion):
+`/transcribe` (all voice subtests) additionally needs the ASR model,
+`scb10x/typhoon-whisper-large-v3` — a separate, much heavier download
+(~5.8 GB → ~3.1 GB float16 after conversion):
 
 ```bash
 ../.venv/Scripts/python.exe -m pip install -r requirements-convert.txt

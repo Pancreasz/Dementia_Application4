@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../moca/app_language.dart';
+import '../moca/event_trace.dart';
 import '../moca/live_session.dart';
 import 'score.dart' as globals;
 
@@ -61,6 +62,26 @@ class _ReorderImagesPageState extends State<ReorderImagesPage> {
       }
     }
     globals.reorderScore = score;
+
+    // The arrangement itself, not just the count of matches.
+    //
+    // Five correct pictures in the wrong order and five wrong pictures both
+    // score 0, and they are not the same finding: the first is intact
+    // recognition with impaired sequencing, the second is a recognition
+    // failure. The recall pool holds ten pictures, so which five were chosen is
+    // a separable measure from where they were put — but only if the
+    // arrangement is kept, and until now it was discarded the moment the score
+    // was computed.
+    LiveSession.current?.trace.add(
+      'delayed-recall',
+      TraceEventType.scored,
+      data: {
+        'recalled': [for (final image in selectedImages) image ?? ''],
+        'target': List.of(correctOrder),
+        'score': score,
+        'maxScore': 5,
+      },
+    );
 
     // Persist before leaving: delayed recall is otherwise only written when
     // orientation completes, and orientation is skippable.

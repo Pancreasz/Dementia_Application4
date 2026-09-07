@@ -146,3 +146,33 @@ class LiveSession {
     } catch (_) {}
   }
 }
+
+/// The session as it stands right now, built for reading rather than writing.
+///
+/// Reads the scores from the globals rather than from [LiveSession.record],
+/// and takes the trace from the live session when there is one. That ordering
+/// is deliberate: the globals are the live working copy, so a page that set a
+/// score and has not yet synced is still represented — a read-only view has no
+/// business showing a patient a score one subtest out of date because of a
+/// bookkeeping detail.
+///
+/// Works with no live session at all, which is what makes the analysis page
+/// testable and keeps it functioning for a session that began before
+/// persistence existed.
+SessionRecord sessionSnapshot() {
+  final live = LiveSession.current;
+  final base = live?.record;
+  return SessionRecord(
+    id: base?.id ?? '',
+    startedAt: base?.startedAt ?? DateTime.now(),
+    larkScore: globals.larkScore,
+    clockScore: globals.clockScore,
+    animalScore: globals.animalScore,
+    attentionScore: globals.attentionScore,
+    reorderScore: globals.reorderScore,
+    correctOrder: List.of(globals.correctOrder),
+    voiceOutcomes: Map.of(globals.voiceOutcomes),
+    trace: live?.trace,
+    completed: base?.completed ?? false,
+  );
+}

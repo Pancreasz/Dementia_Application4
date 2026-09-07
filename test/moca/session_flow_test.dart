@@ -32,7 +32,11 @@ void main() {
     expect(nextRouteAfter('vigilance'), '/attention');
     expect(nextRouteAfter('verbal-fluency'), '/abstraction-1');
     expect(nextRouteAfter('abstraction-2'), '/reorderimages');
-    expect(nextRouteAfter('orientation'), '/endpage');
+    // The last subtest hands off to the per-domain breakdown, which then
+    // continues to the score. Pinned because the ordering is the point: the
+    // total is the thing everyone remembers, and shown first it turns the
+    // detail after it into commentary on a verdict already given.
+    expect(nextRouteAfter('orientation'), '/analysis');
   });
 
   test('the first three run back to back', () {
