@@ -1,10 +1,15 @@
-"""Thai speech transcription for POST /transcribe.
+"""Speech transcription for POST /transcribe, one model per language.
 
-A CTranslate2 build of `scb10x/typhoon-whisper-large-v3`, run through
-faster-whisper on CPU. The model is loaded on a *background thread* so /health
-answers immediately instead of hanging on the first request.
+Thai runs on a CTranslate2 build of `scb10x/typhoon-whisper-large-v3`; English
+runs on `Systran/faster-distil-whisper-large-v3`. Both go through
+faster-whisper on CPU, and both load on *background threads* so /health answers
+immediately instead of hanging on the first request.
 
-This module owns model loading and transcription only. It never constructs the
+Two models rather than one because a Thai fine-tune is not an English
+recognizer — see DEFAULT_MODEL_DIR_EN for what that produced when English
+requests were served by the Thai model.
+
+This module owns model loading and transcription only. It never constructs a
 model at import time — tests import it and must not trigger a multi-GB load.
 """
 
@@ -56,6 +61,35 @@ DEFAULT_MODEL_DIR = os.environ.get(
 )
 DEFAULT_COMPUTE_TYPE = os.environ.get("MOCA_ASR_COMPUTE_TYPE", "int8")
 
+# The ENGLISH model, added 2026-09-08. `Systran/faster-distil-whisper-large-v3`
+# — an English-only distillation of whisper-large-v3 with two decoder layers
+# instead of thirty-two.
+#
+# WHY A SECOND MODEL RATHER THAN ONE MULTILINGUAL ONE
+# --------------------------------------------------
+# Both Thai models this backend has used — biodatlab's medium and typhoon — are
+# Thai fine-tunes, and fine-tuning pulled them away from whatever multilingual
+# behaviour the base checkpoint had. handout.md records what that produced in
+# English: fluency answers transcribed into Thai script, abstraction
+# hallucinating "Thank you for watching, please leave a like", "Hospital"
+# looping six times. Passing language='en' to a Thai fine-tune does not make it
+# an English recognizer, and English mode has been demo-quality since.
+#
+# So `language` now selects the model, not just a decoding hint. The Thai model
+# keeps Thai, where it is genuinely better than a general checkpoint.
+#
+# THIS MODEL CANNOT DO THAI. distil-whisper is English-only — its own model card
+# says `language: en`. It is deliberately never asked to: [pick_model] routes by
+# language and nothing falls back across the split. A fallback is exactly how
+# the current bug reads to a clinician, which is to say invisibly.
+DEFAULT_MODEL_DIR_EN = os.environ.get(
+    "MOCA_ASR_MODEL_DIR_EN",
+    # Where the checkpoint was downloaded: the repo root, one level above
+    # backend/. A container needs it inside the build context instead — see
+    # the Dockerfile.
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "systran-whisper"),
+)
+
 # Decoding options, measured against the four stimulus clips on 2026-08-18 after
 # a real session produced both a 0/1 digit span the patient answered correctly
 # and multi-minute waits.
@@ -99,6 +133,36 @@ DEFAULT_TEMPERATURE = float(os.environ.get("MOCA_ASR_TEMPERATURE", "0"))
 DEFAULT_REPETITION_PENALTY = float(
     os.environ.get("MOCA_ASR_REPETITION_PENALTY", "1.10")
 )
+
+
+# Serializes the ASR model loads. Shared by every AsrModel by default, which is
+# the point: it is not protecting shared state, it is protecting RAM.
+#
+# Measured on 2026-09-08, the first time two of these were configured at once:
+# both started loading in parallel and the Thai one died with
+# `RuntimeError('mkl_malloc: failed to allocate memory')`, leaving /health
+# reporting asr=error, asr_en=ready — a backend that had silently lost Thai.
+#
+# The peak is the conversion, not the resident model. Typhoon ships float16 and
+# `compute_type="int8"` requantizes it in memory on the way in, so for a moment
+# both the 3.1 GB float16 copy and the 1.5 GB int8 copy are live; the English
+# model is doing the same thing beside it. Loading them one at a time makes the
+# peak the largest single model instead of the sum, at the cost of a slower
+# start — and /health already reports `loading` honestly until it finishes.
+#
+# Converting typhoon straight to int8 on disk removes the requantization peak
+# as well; see MOCA_CONVERT_QUANTIZATION in scripts/convert_model.py.
+_LOAD_LOCK = threading.Lock()
+
+
+def is_english(language: str) -> bool:
+    """Whether [language] should be served by the English model.
+
+    Prefix-matched so 'en', 'en-US' and 'eng' all route the same way. Anything
+    else — including an empty or unknown code — routes to Thai, which is what
+    the app sends by default and what every stimulus in the repo is recorded in.
+    """
+    return (language or "").strip().lower().startswith("en")
 
 
 class LoadState(str, Enum):
@@ -157,7 +221,14 @@ class AsrModel:
         compute_type: str = DEFAULT_COMPUTE_TYPE,
         temperature: float = DEFAULT_TEMPERATURE,
         repetition_penalty: float = DEFAULT_REPETITION_PENALTY,
+        label: str = "asr",
+        load_lock: Optional[threading.Lock] = None,
     ):
+        # Names this instance in /health and in load-failure details. With two
+        # models running, "model load failed" without a label sends whoever
+        # reads it to the wrong directory.
+        self.label = label
+        self._load_lock = load_lock or _LOAD_LOCK
         self._model_dir = model_dir
         self._device = device
         self._compute_type = compute_type
@@ -182,7 +253,9 @@ class AsrModel:
 
     def start_loading(self) -> threading.Thread:
         """Kick off the load on a daemon thread and return it immediately."""
-        thread = threading.Thread(target=self._load, name="asr-load", daemon=True)
+        thread = threading.Thread(
+            target=self._load, name=f"{self.label}-load", daemon=True
+        )
         thread.start()
         return thread
 
@@ -192,9 +265,23 @@ class AsrModel:
             # ctranslate2 or triggers a download.
             from faster_whisper import WhisperModel
 
-            model = WhisperModel(
-                self._model_dir, device=self._device, compute_type=self._compute_type
-            )
+            # Named before the generic loader error, which reports a missing
+            # directory as an unhelpful RuntimeError about a missing model.bin.
+            # With two models configured, "which directory?" is the first
+            # question anyone reading /health will have.
+            if not os.path.isdir(self._model_dir):
+                raise FileNotFoundError(
+                    f"no model directory at {self._model_dir}"
+                )
+
+            # One model converts at a time. See _LOAD_LOCK — this is about RAM,
+            # not about shared state.
+            with self._load_lock:
+                model = WhisperModel(
+                    self._model_dir,
+                    device=self._device,
+                    compute_type=self._compute_type,
+                )
             with self._lock:
                 self._model = model
                 self._state = LoadState.READY
@@ -202,7 +289,7 @@ class AsrModel:
         except BaseException as exc:  # noqa: BLE001 - report every failure via /health
             with self._lock:
                 self._state = LoadState.ERROR
-                self._detail = describe_load_failure(exc)
+                self._detail = f"{self.label}: {describe_load_failure(exc)}"
 
     def transcribe(self, audio, language: str = "th") -> Transcription:
         """Transcribe audio. Caller guarantees the model is READY.

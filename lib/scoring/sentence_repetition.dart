@@ -107,8 +107,26 @@ String _spellOutNumbersAsDigits(String text) {
 /// Removed rather than collapsed. `normalizeText` collapses runs to a single
 /// space, which is the right thing for languages where a space is a word
 /// boundary and the wrong thing here.
-String _forComparison(String text) =>
-    _spellOutNumbersAsDigits(normalizeText(text)).replaceAll(RegExp(r'\s+'), '');
+///
+/// Punctuation goes for the same reason, and was found the same way. The
+/// English model added on 2026-09-08 returns
+/// "How can a clam cram? In a clean cream can..." for a clip of "How can a
+/// clam cram in a clean cream can" — a verbatim match plus a question mark and
+/// an ellipsis the speaker never uttered. Four invented characters against a
+/// 31-character sentence is 0.886 similarity, under the 0.90 threshold, so the
+/// patient scored 0 for repeating it perfectly.
+///
+/// This can only ever move a score UP, because it deletes characters that were
+/// never spoken by anyone: it cannot make a wrong answer look right, only stop
+/// the recognizer's typography from costing a right one.
+///
+/// Applied AFTER [_spellOutNumbersAsDigits], which still needs the hyphen in
+/// "thirty-three" to be there when it runs.
+final RegExp _punctuation = RegExp(r'''[.,!?;:'"“”‘’()\[\]{}…–—\-/\\]''');
+
+String _forComparison(String text) => _spellOutNumbersAsDigits(normalizeText(text))
+    .replaceAll(_punctuation, '')
+    .replaceAll(RegExp(r'\s+'), '');
 
 SubtestOutcome scoreSentenceRepetition(
   String subtestId,

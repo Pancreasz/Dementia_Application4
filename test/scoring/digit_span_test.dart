@@ -37,6 +37,28 @@ void main() {
     });
   });
 
+  group('real distil-whisper output (regression, 2026-09-08)', () {
+    // Verbatim from the English ASR model added on 2026-09-08, transcribing
+    // the English digit stimuli. Transcripts of what the patient HEARS, not of
+    // a patient answering — a proxy for the scorer's input, not evidence about
+    // anyone. The point is that both shapes the model produces are extracted
+    // correctly, because neither is bare digits.
+    test('English digit words are extracted, not just digits', () {
+      final outcome = scoreDigitSpan(
+          'digit-span-forward', 'Two, one, eight, five, four.', '21854');
+      expect(outcome.detail['spoken'], '21854');
+      expect(outcome.score, 1);
+    });
+
+    test('digits split by stray punctuation are still one sequence', () {
+      // "7 4.2" — the decimal point is the recognizer's invention, and
+      // splitting on it would drop a digit and score a correct answer 0.
+      final outcome = scoreDigitSpan('digit-span-backward', '2.4 7', '247');
+      expect(outcome.detail['spoken'], '247');
+      expect(outcome.score, 1);
+    });
+  });
+
   test('records what was heard and what was expected, for review', () {
     final outcome =
         scoreDigitSpan('digit-span-forward', 'สองหนึ่งแปด', '21854');

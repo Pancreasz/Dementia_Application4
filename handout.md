@@ -210,6 +210,15 @@ Whisper model to the backend for English sessions (or replacing the Thai
 fine-tune with one) — a separate, larger piece of backend work, not done
 here.
 
+> **Done on 2026-09-08.** That second model exists:
+> `Systran/faster-distil-whisper-large-v3`, selected by `language` on
+> `/transcribe`, with no fallback to the Thai model. Every symptom above was
+> re-measured against it and none survived — the sentence stimuli come back
+> verbatim and score 1, the digits extract correctly. See
+> `design_docs/CONTENT-STATUS.md` item **l** for the side-by-side and for the
+> two problems it exposed (a punctuation bug in sentence repetition, and a
+> memory ceiling from running two large models at once).
+
 ## Backend wiring — done 2026-08-18
 
 The app used to point at `https://moca-flask-container.azurewebsites.net`, which

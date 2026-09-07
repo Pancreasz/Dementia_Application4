@@ -69,6 +69,47 @@ void main() {
     });
   });
 
+  group('real distil-whisper output (regression, 2026-09-08)', () {
+    // Verbatim from `Systran/faster-distil-whisper-large-v3`, the English ASR
+    // model added on 2026-09-08, transcribing the two English sentence
+    // stimuli. These are transcripts of the STIMULUS clips, not of a patient
+    // repeating them — nobody has recorded a patient yet — so they are a proxy
+    // for what the scorer will be handed, not evidence about any person.
+    //
+    // Pinned because the scorers and the ASR model are only correct together.
+    // The previous model returned "How can a in a Cleanครีมแคน" for the first
+    // of these, and Thai script for the second, and both scored 0.
+    test('sentence 1 scores despite invented punctuation', () {
+      final outcome = scoreSentenceRepetition(
+        'sentence-repetition-1',
+        'How can a clam cram? In a clean cream can...',
+        'How can a clam cram in a clean cream can',
+      );
+      expect(outcome.score, 1);
+    });
+
+    test('sentence 2 scores despite the number coming back as digits', () {
+      final outcome = scoreSentenceRepetition(
+        'sentence-repetition-2',
+        'The 33 thieves thought that they thrilled the throne.',
+        'The thirty-three thieves thought that they thrilled the throne.',
+      );
+      expect(outcome.score, 1);
+    });
+
+    test('invented punctuation cannot rescue a genuinely wrong answer', () {
+      // The punctuation strip deletes characters nobody spoke, so it can only
+      // ever move a score up for a correct repetition. It must not turn a
+      // missing clause into a pass.
+      final outcome = scoreSentenceRepetition(
+        'sentence-repetition-1',
+        'How can a clam cram?',
+        'How can a clam cram in a clean cream can',
+      );
+      expect(outcome.score, 0);
+    });
+  });
+
   group('spelled-out numbers vs digits (regression, English mode)', () {
     // The real sentence-2 in English mode contains "thirty-three" as a
     // written number, but Whisper transcribed it as "33" — a mismatch that

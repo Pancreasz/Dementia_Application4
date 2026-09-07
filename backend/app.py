@@ -22,7 +22,7 @@ from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from asr import AsrModel, LoadState
+from asr import DEFAULT_MODEL_DIR_EN, AsrModel, LoadState, is_english
 from clock import ClockModel
 from embeddings import SimilarityModel
 
@@ -34,7 +34,11 @@ _WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), "moca_densenet.pth")
 # monkeypatch these module globals with fakes; routes read them via the
 # accessors below so a patched global takes effect.
 clock_model = ClockModel(_WEIGHTS_PATH)
-asr_model = AsrModel()
+asr_model = AsrModel(label="asr-th")
+asr_model_en = AsrModel(
+    model_dir=DEFAULT_MODEL_DIR_EN,
+    label="asr-en",
+)
 similarity_model = SimilarityModel()
 
 
@@ -46,6 +50,24 @@ def get_asr() -> AsrModel:
     return asr_model
 
 
+def get_asr_en() -> AsrModel:
+    return asr_model_en
+
+
+def asr_for(language: str) -> AsrModel:
+    """The model that serves [language].
+
+    Deliberately without a fallback. Serving an English request from the Thai
+    model is what the app did until 2026-09-08, and handout.md records the
+    result: English fluency answers transcribed into Thai script, abstraction
+    hallucinating unrelated sentences, "Hospital" looping six times. Every one
+    of those was scored as a patient finding. If the English model is not
+    loaded, /transcribe answers 503 and the subtest lands on Retry/Skip, which
+    is a subtest that was not administered rather than one the patient failed.
+    """
+    return get_asr_en() if is_english(language) else get_asr()
+
+
 def get_similarity() -> SimilarityModel:
     return similarity_model
 
@@ -54,9 +76,17 @@ def get_similarity() -> SimilarityModel:
 async def lifespan(app: FastAPI):
     get_clock().start_loading()
     get_asr().start_loading()
-    # Third model on the cold-start bill. It is the smallest of the three
-    # (~470 MB) and loads in parallel with the other two, so it extends startup
-    # by less than it costs on its own.
+    # Fourth model on the cold-start bill, and the reason to watch RAM: two
+    # large-v3-class ASR models are resident at once, roughly 1.5 GB each as
+    # int8. Loaded eagerly rather than on first English request so /health can
+    # report honestly before a session starts — a lazily-loaded model is
+    # "ready" right up until the moment a patient needs it. A deployment that
+    # only ever administers in Thai can skip it with
+    # MOCA_ASR_MODEL_DIR_EN pointed at nothing; English then 503s, which is the
+    # correct answer for a language this backend cannot transcribe.
+    get_asr_en().start_loading()
+    # The smallest of the four (~470 MB), and it loads in parallel with the
+    # others, so it extends startup by less than it costs on its own.
     get_similarity().start_loading()
     yield
 
@@ -146,15 +176,22 @@ async def upload(file: UploadFile = File(...)):
 
 @app.post("/transcribe")
 async def transcribe(file: UploadFile = File(...), language: str = Form("th")):
-    """Transcribe Thai speech. Returns text + faster-whisper segments.
+    """Transcribe speech. Returns text + faster-whisper segments.
 
-    While the model is still loading (or failed to load) this returns 503 with
-    a {detail} body rather than 200 with an empty transcript — an empty
-    transcript would be scored as the patient having said nothing.
+    `language` SELECTS THE MODEL, it is not just a decoding hint: Thai goes to
+    the Thai fine-tune, English to the English one. See `asr_for`.
+
+    While the chosen model is still loading (or failed to load) this returns
+    503 with a {detail} body rather than 200 with an empty transcript — an
+    empty transcript would be scored as the patient having said nothing.
     """
-    asr = get_asr()
+    asr = asr_for(language)
     if not asr.is_ready:
-        detail = "model not loaded" if asr.state == LoadState.LOADING else asr.detail
+        detail = (
+            f"{asr.label}: model not loaded"
+            if asr.state == LoadState.LOADING
+            else asr.detail
+        )
         raise HTTPException(status_code=503, detail=detail)
 
     audio_bytes = await file.read()
@@ -221,8 +258,9 @@ async def health():
     """
     clock = get_clock()
     asr = get_asr()
+    asr_en = get_asr_en()
     embed = get_similarity()
-    states = [clock.state, asr.state, embed.state]
+    states = [clock.state, asr.state, asr_en.state, embed.state]
     if LoadState.ERROR in states:
         status = LoadState.ERROR
     elif LoadState.LOADING in states:
@@ -233,11 +271,16 @@ async def health():
     body = {
         "status": status.value,
         "detail": (
-            f"clock: {clock.detail} | asr: {asr.detail} | similarity: {embed.detail}"
+            f"clock: {clock.detail} | asr: {asr.detail} | "
+            f"asr_en: {asr_en.detail} | similarity: {embed.detail}"
         ),
         "models": {
             "clock": {"status": clock.state.value, "detail": clock.detail},
+            # Kept as "asr" rather than renamed to "asr_th": /health is read by
+            # people and by whatever they have scripted against it, and the key
+            # that was already there should keep meaning what it meant.
             "asr": {"status": asr.state.value, "detail": asr.detail},
+            "asr_en": {"status": asr_en.state.value, "detail": asr_en.detail},
             "similarity": {"status": embed.state.value, "detail": embed.detail},
         },
     }

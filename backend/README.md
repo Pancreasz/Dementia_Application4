@@ -54,13 +54,39 @@ float16):
 ../.venv/Scripts/python.exe scripts/convert_model.py
 ```
 
-The model is `scb10x/typhoon-whisper-large-v3`, a Thai fine-tune of
-whisper-large-v3, since 2026-09-07. It replaced
-`biodatlab/whisper-th-medium-combined`, which is a third of the size and still
-builds — see `scripts/convert_model.py`'s docstring for the three environment
-variables that rebuild it, and set `MOCA_ASR_MODEL_DIR=models/whisper-th-ct2` to
-run against it. **It is still a Thai-only fine-tune**, so it does not fix the
-English voice subtests (`handout.md`).
+That builds the **Thai** model, `scb10x/typhoon-whisper-large-v3`, in place of
+`biodatlab/whisper-th-medium-combined` since 2026-09-07. The old one is a third
+of the size and still builds — see `scripts/convert_model.py`'s docstring for
+the environment variables that rebuild it, and set
+`MOCA_ASR_MODEL_DIR=models/whisper-th-ct2` to run against it.
+
+### The English model
+
+Since 2026-09-08 `language` **selects the model**, it is not just a decoding
+hint. English goes to `Systran/faster-distil-whisper-large-v3`, expected at
+`systran-whisper/` in the repo root (one level above `backend/`) and
+overridable with `MOCA_ASR_MODEL_DIR_EN`. Download it with:
+
+```bash
+huggingface-cli download Systran/faster-distil-whisper-large-v3 \
+  --local-dir ../systran-whisper
+```
+
+There is deliberately **no fallback between the two**. A Thai fine-tune is not
+an English recognizer — `handout.md` records what serving English from it
+produced — so if the English model is missing, English `/transcribe` answers
+503 and the subtest records as *not administered* rather than being scored on
+hallucinated text.
+
+`/health` lists both as `asr` (Thai) and `asr_en`.
+
+> **Memory.** Two large-v3-class models are resident at once. They load one at
+> a time, but the steady state is roughly 2.5 GB for the pair plus ~0.5 GB for
+> the embedding model. On a 15.6 GB workstation with ~2 GB free the second load
+> failed with `mkl_malloc: failed to allocate memory` — `/health` then reports
+> one ASR model ready and the other in error, which is the shape to look for.
+> A Thai-only deployment can point `MOCA_ASR_MODEL_DIR_EN` at nothing and save
+> the whole English footprint.
 
 ## Run
 
@@ -141,6 +167,10 @@ above were taken back to back on a warm one and are not comparable to it.
 
 Accuracy on those same clips is **mixed, not uniformly better** — see
 `design_docs/CONTENT-STATUS.md` item **j** for the side-by-side.
+
+The English model is faster on both counts: **load 8.5 s**, and **15 s per
+clip** against typhoon's 19–27 s. distil-large-v3 has two decoder layers rather
+than thirty-two, which is where that comes from.
 
 ## ASR accuracy is NOT validated
 

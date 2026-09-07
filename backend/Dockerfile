@@ -42,8 +42,21 @@ COPY app.py asr.py clock.py embeddings.py ./
 #                                     faster-whisper fetches the tokenizer from
 #                                     huggingface.co at every container start
 #                                     instead of staying offline)
+#   models/systran-whisper/        <- the ENGLISH model. Its default location
+#                                     is the repo root, one level ABOVE this
+#                                     build context, so a container cannot see
+#                                     it there. Copy it under models/ and set
+#                                     MOCA_ASR_MODEL_DIR_EN=models/systran-whisper,
+#                                     or English /transcribe answers 503.
 #   models/embeddings/             <- populated on first /similarity call, or
 #                                     ahead of time so the image stays offline
+#
+# MEMORY. Two large-v3-class ASR models are resident at once. Measured on a
+# 15.6 GB workstation on 2026-09-08 with ~2 GB free, the second load died with
+# `mkl_malloc: failed to allocate memory`. They now load one at a time, which
+# fixes the conversion peak but not the steady-state footprint: budget ~2.5 GB
+# for the two of them, plus ~0.5 GB for embeddings, and give the container
+# headroom or it will report a healthy Thai model and a failed English one.
 #
 # `COPY models/` takes whatever is in that directory. A machine that has both
 # the typhoon build and the superseded models/whisper-th-ct2 ships both, which

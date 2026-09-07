@@ -10,11 +10,16 @@ from asr import LoadState, Segment, Transcription
 from conftest import FakeAsr, FakeClock, FakeSimilarity
 
 
-def make_client(clock=None, asr=None, similarity=None, monkeypatch=None):
+def make_client(clock=None, asr=None, asr_en=None, similarity=None, monkeypatch=None):
     monkeypatch.setattr(app_module, "clock_model", clock or FakeClock())
-    monkeypatch.setattr(app_module, "asr_model", asr or FakeAsr())
-    # /health aggregates all three models, so leaving this one real would make
-    # every readiness assertion here depend on a 470 MB background download.
+    monkeypatch.setattr(app_module, "asr_model", asr or FakeAsr(label="asr-th"))
+    # The English model is a separate instance, not a decoding flag on the Thai
+    # one — /transcribe routes to it by language. Patched here for the same
+    # reason as the others: /health aggregates every model, so leaving one real
+    # would make every readiness assertion depend on a multi-GB background load.
+    monkeypatch.setattr(
+        app_module, "asr_model_en", asr_en or FakeAsr(label="asr-en")
+    )
     monkeypatch.setattr(
         app_module, "similarity_model", similarity or FakeSimilarity()
     )
@@ -109,7 +114,9 @@ def test_transcribe_returns_text_and_segment_shape(monkeypatch):
 
 def test_transcribe_503_while_loading_not_200_empty(monkeypatch):
     client = make_client(
-        asr=FakeAsr(state=LoadState.LOADING, detail="model not loaded"),
+        asr=FakeAsr(
+            state=LoadState.LOADING, detail="model not loaded", label="asr-th"
+        ),
         monkeypatch=monkeypatch,
     )
     resp = client.post(
@@ -118,7 +125,9 @@ def test_transcribe_503_while_loading_not_200_empty(monkeypatch):
         data={"language": "th"},
     )
     assert resp.status_code == 503
-    assert resp.json()["detail"] == "model not loaded"
+    # Names WHICH model. There are two now, in two different directories, and a
+    # bare "model not loaded" sends whoever reads it to the wrong one.
+    assert resp.json()["detail"] == "asr-th: model not loaded"
 
 
 def test_transcribe_503_when_load_errored(monkeypatch):
@@ -146,6 +155,79 @@ def test_transcribe_decode_failure_is_4xx(monkeypatch):
         data={"language": "th"},
     )
     assert resp.status_code == 400
+
+
+# --------------------------------------------------------------------------
+# /transcribe — language selects the MODEL, not just a decoding hint
+#
+# Until 2026-09-08 every language was served by the Thai fine-tune. handout.md
+# records what that produced in English: fluency answers transcribed into Thai
+# script, abstraction hallucinating unrelated sentences, "Hospital" looping six
+# times — each of them scored as a patient finding. These tests exist so that
+# cannot come back quietly.
+# --------------------------------------------------------------------------
+
+def _post(client, language):
+    return client.post(
+        "/transcribe",
+        files={"file": ("r.wav", b"x", "audio/wav")},
+        data={"language": language},
+    )
+
+
+@pytest.mark.parametrize("language", ["en", "en-US", "EN", "eng"])
+def test_transcribe_english_goes_to_the_english_model(monkeypatch, language):
+    th = FakeAsr(result=Transcription(text="thai model", segments=[]), label="asr-th")
+    en = FakeAsr(result=Transcription(text="english model", segments=[]), label="asr-en")
+    client = make_client(asr=th, asr_en=en, monkeypatch=monkeypatch)
+
+    assert _post(client, language).json()["text"] == "english model"
+    assert th.calls == [], "the Thai model must not see an English request"
+    assert en.calls == [language]
+
+
+@pytest.mark.parametrize("language", ["th", "", "th-TH", "fr"])
+def test_transcribe_everything_else_goes_to_the_thai_model(monkeypatch, language):
+    # Thai is the default, and an unknown code lands there rather than nowhere:
+    # every stimulus in the repo is recorded in Thai or English, and the app
+    # only ever sends one of those two.
+    th = FakeAsr(result=Transcription(text="thai model", segments=[]), label="asr-th")
+    en = FakeAsr(result=Transcription(text="english model", segments=[]), label="asr-en")
+    client = make_client(asr=th, asr_en=en, monkeypatch=monkeypatch)
+
+    assert _post(client, language).json()["text"] == "thai model"
+    assert en.calls == []
+
+
+def test_english_503s_rather_than_falling_back_to_thai(monkeypatch):
+    # The whole point of the split. A fallback would put English speech through
+    # a Thai fine-tune and score the result, which is the bug this replaces —
+    # and it would be invisible, because the response is a 200 with plausible
+    # text in it. A 503 lands the subtest on Retry/Skip, which records "not
+    # administered" rather than "the patient failed".
+    th = FakeAsr(result=Transcription(text="thai model", segments=[]), label="asr-th")
+    en = FakeAsr(
+        state=LoadState.ERROR,
+        detail="asr-en: no model directory at ./systran-whisper",
+        label="asr-en",
+    )
+    client = make_client(asr=th, asr_en=en, monkeypatch=monkeypatch)
+
+    resp = _post(client, "en")
+    assert resp.status_code == 503
+    assert "systran-whisper" in resp.json()["detail"]
+    assert th.calls == []
+
+
+def test_a_loading_english_model_does_not_block_thai(monkeypatch):
+    # The two models load on separate threads and the English one is the
+    # larger download. Thai sessions must not wait for it.
+    th = FakeAsr(result=Transcription(text="thai model", segments=[]), label="asr-th")
+    en = FakeAsr(state=LoadState.LOADING, detail="model not loaded", label="asr-en")
+    client = make_client(asr=th, asr_en=en, monkeypatch=monkeypatch)
+
+    assert _post(client, "th").status_code == 200
+    assert _post(client, "en").status_code == 503
 
 
 # --------------------------------------------------------------------------
@@ -179,6 +261,31 @@ def test_health_ready_when_both_ready(monkeypatch):
     client = make_client(monkeypatch=monkeypatch)
     resp = client.get("/health")
     assert resp.json()["status"] == "ready"
+
+
+def test_health_lists_every_model_separately(monkeypatch):
+    client = make_client(monkeypatch=monkeypatch)
+    models = client.get("/health").json()["models"]
+    # "asr" keeps its old meaning (Thai) rather than being renamed to "asr_th":
+    # /health is read by people and by whatever they have scripted against it.
+    assert set(models) == {"clock", "asr", "asr_en", "similarity"}
+
+
+def test_health_is_not_ready_when_only_english_failed(monkeypatch):
+    # A backend that transcribes Thai perfectly and cannot transcribe English at
+    # all is not "ready". Aggregating it away would hide a whole language.
+    client = make_client(
+        asr_en=FakeAsr(
+            state=LoadState.ERROR,
+            detail="asr-en: no model directory at ./systran-whisper",
+            label="asr-en",
+        ),
+        monkeypatch=monkeypatch,
+    )
+    body = client.get("/health").json()
+    assert body["status"] == "error"
+    assert body["models"]["asr"]["status"] == "ready"
+    assert "systran-whisper" in body["detail"]
 
 
 # --------------------------------------------------------------------------

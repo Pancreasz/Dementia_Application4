@@ -272,6 +272,56 @@ repetition's threshold moved from a private constant into
 states the number a score was actually measured against rather than repeating
 it in its own text where it could drift.
 
+**l. ~~English voice mode is demo-quality.~~ FIXED 2026-09-08.** `language` now
+**selects the model** rather than being a decoding hint. English goes to
+`Systran/faster-distil-whisper-large-v3` (`systran-whisper/` in the repo root,
+`MOCA_ASR_MODEL_DIR_EN` to move it); Thai keeps typhoon, where a Thai fine-tune
+genuinely beats a general checkpoint.
+
+Same clips, same decoding options, both models:
+
+| Clip | distil-large-v3 (now) | typhoon (before) |
+|---|---|---|
+| `eng-sentence-1` | "How can a clam cram? In a clean cream can..." | "How can a in a Cleanครีมแคน" |
+| `eng-sentence-2` | "The 33 thieves thought that they thrilled the throne." | "สี่สีห์คิดว่าเขาจะเคลียร์ตัวเอง" |
+| `eng-digits-forward` | "Two, one, eight, five, four." | "สองหนึ่งแปดสิบห้าสี่" |
+| `eng-digits-backward` | "7 4.2" | "four two" |
+| Load / per clip | 8.5 s / ~15 s | 17 s / 19–27 s |
+
+Both English sentence transcripts now score **1** through the real scorers, and
+both digit transcripts extract correctly — pinned as regression tests in
+`sentence_repetition_test.dart` and `digit_span_test.dart`. Note these are
+transcripts of the *stimulus* clips, not of a patient repeating them: a proxy
+for the scorer's input, not evidence about anyone.
+
+**There is deliberately no fallback between the two models.** If the English
+one is missing, English `/transcribe` answers 503 and the subtest records as
+*not administered*. Serving English from the Thai model is precisely the bug
+this replaces, and its failure mode is a 200 with plausible-looking text that
+gets scored.
+
+Two things this turned up:
+
+- **A punctuation bug in sentence repetition, worth more than the model swap.**
+  distil returns "How can a clam cram? **In** a clean cream can**...**" for a
+  verbatim clip. Four characters of invented punctuation against a
+  31-character sentence is 0.886 similarity — under the 0.90 threshold, so a
+  perfect repetition scored **0**. `_forComparison` now strips punctuation for
+  the same reason it already stripped whitespace: it is the recognizer's
+  typography, not the patient's speech. This can only move a score up, because
+  it deletes characters nobody uttered; a test pins that it cannot rescue a
+  genuinely wrong answer.
+- **Memory is now a real constraint.** Two large-v3-class models are resident
+  at once. On this 15.6 GB workstation with ~2 GB free, loading them in
+  parallel killed the Thai one with `mkl_malloc: failed to allocate memory` and
+  left `/health` reporting `asr=error, asr_en=ready` — a backend that had
+  silently lost a language. They now load one at a time behind a shared lock,
+  which removes the conversion peak but not the ~2.5 GB steady state. If both
+  cannot fit, converting typhoon straight to int8 on disk
+  (`MOCA_CONVERT_QUANTIZATION=int8`) removes both its 3.1 GB float16 load peak
+  and about half its resident size. Not done here — it would replace a model
+  artifact that is currently working.
+
 **h. `SessionConfig.place`/`.province` cannot be injected.**
 `lib/scoring/score_item.dart` reads the statics directly
 (`SessionConfig.place`, `SessionConfig.province`), so the values cannot be
@@ -334,10 +384,7 @@ Two further things follow that are not done:
 - **Nothing scores worse today because of the dropped digit** — that clip is
   what the patient *hears*, not what is transcribed. But it is the only
   same-input comparison available, and it points the wrong way.
-- **English is not fixed.** Typhoon is trained on ~11,000 hours of Thai and is
-  a Thai-only fine-tune, exactly like the model it replaced. Every English
-  finding in `handout.md` ("English mode is demo-quality") still holds. If
-  English mode matters, this change was not the fix for it.
+- **~~English is not fixed.~~ FIXED on 2026-09-08 — see item l.**
 - **Both models are still on disk** (`models/whisper-th-ct2`, 739 MB, and
   `models/typhoon-large-v3-ct2`, 2.9 GB). Reverting is
   `MOCA_ASR_MODEL_DIR=models/whisper-th-ct2` with no rebuild; `COPY models/` in

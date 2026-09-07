@@ -37,11 +37,23 @@ class FakeClock:
 
 
 class FakeAsr:
-    def __init__(self, *, result=None, raises=None, state=LoadState.READY, detail="ready"):
+    def __init__(
+        self,
+        *,
+        result=None,
+        raises=None,
+        state=LoadState.READY,
+        detail="ready",
+        label="asr",
+    ):
         self._result = result or Transcription(text="", segments=[])
         self._raises = raises
         self.state = state
         self.detail = detail
+        self.label = label
+        # Records what the route actually asked for, so a test can prove which
+        # of the two models served a request rather than inferring it.
+        self.calls = []
 
     @property
     def is_ready(self):
@@ -51,6 +63,7 @@ class FakeAsr:
         return None
 
     def transcribe(self, audio, language="th"):
+        self.calls.append(language)
         if self._raises is not None:
             raise self._raises
         return self._result
