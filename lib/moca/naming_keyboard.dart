@@ -16,17 +16,19 @@
 ///
 /// TWO LAYOUTS, AND WHY BOTH EXIST
 /// -------------------------------
+/// [NamingKeyboardLayout.standard] is the default and is the layout the
+/// patient's own phone or computer uses — Kedmanee for Thai, QWERTY for
+/// English — with a shift key and both legends printed on every key, the
+/// shifted one above. Anyone who already types Thai finds the keys where their
+/// hands expect them.
+///
 /// [NamingKeyboardLayout.alphabetical] is a flat grid in dictionary order with
 /// no shift: every character the patient can type is visible at once. Nothing
-/// is hidden behind a modifier, so a patient who has never touch-typed can find
-/// any letter by scanning.
-///
-/// [NamingKeyboardLayout.standard] is the layout the patient's own phone or
-/// computer uses — Kedmanee for Thai, QWERTY for English — with a shift key and
-/// both legends printed on every key, the shifted one above. Someone who
-/// already types Thai will be far faster on it, and far slower on the
-/// alphabetical grid, because Kedmanee's positions carry no relationship to the
-/// alphabet.
+/// is hidden behind a modifier, so a patient who has never typed can find any
+/// letter by scanning. It is offered as the alternative rather than the
+/// default, because a familiar layout beats a discoverable one for most people
+/// and the ones it does not suit are visible to whoever is administering the
+/// test.
 ///
 /// Which one suits a given patient is an empirical question this app cannot
 /// answer, so it offers both. What it must not do is mix them: the layout is
@@ -36,13 +38,19 @@
 ///
 /// WHAT IS AND IS NOT COMPARABLE ACROSS PATIENTS
 /// --------------------------------------------
-/// Keys are a fixed logical size in a fixed order, so the layout does not
-/// change from patient to patient. It can still change from DEVICE to device:
-/// logical pixels are not millimetres, and the standard layout's widest row is
-/// about 460 logical pixels, so a narrow phone scrolls it horizontally — and a
-/// key reached by scrolling costs time that has nothing to do with word
-/// finding. Within one patient on one device the timings are comparable; across
-/// patients they are comparable only on the same hardware.
+/// The standard layout's keys are sized to fit the viewport, so **key size is
+/// not constant across devices**. That is a deliberate trade made on
+/// 2026-09-08: at a fixed 36 logical pixels the twelve-key Kedmanee number row
+/// needs about 460 of them, and on a 393-pixel phone the last two keys of every
+/// row sat off the right edge. A key that cannot be reached is worse than a key
+/// whose size varies — the unreachable one does not just distort the timing,
+/// it makes some characters untypeable.
+///
+/// So: the ORDER is fixed and identical for everyone; the SIZE follows the
+/// screen. Within one patient on one device timings are comparable, which is
+/// all the analysis page ever claims. Across devices they are not, and the
+/// viewport width is recorded in the trace so that is checkable rather than
+/// merely asserted.
 ///
 /// The alphabet is COMPLETE in both layouts. Showing only the letters the
 /// answer needs would turn naming into a puzzle with a much smaller search
@@ -53,23 +61,65 @@ import 'package:flutter/material.dart';
 
 import 'app_language.dart';
 
-/// Fixed logical key size for the alphabetical grid.
+/// Fixed logical key size for the alphabetical grid, which wraps and so needs
+/// no fitting.
 const double keyWidth = 42;
 const double keyHeight = 46;
 
-/// Narrower for the standard layout, whose longest row is twelve keys wide.
-/// Still fixed — it does not shrink to fit the screen, because a key size that
-/// depends on the viewport would make two sessions on two devices silently
-/// incomparable rather than visibly so.
+/// The standard layout's key size on a screen wide enough for it. Narrower
+/// screens scale down from here — see [fitStandardKeyWidth].
 const double standardKeyWidth = 36;
 const double standardKeyHeight = 50;
 
+/// Below this a key is too small to hit reliably, so the keyboard scrolls
+/// instead of shrinking further. Real Thai phone keyboards sit around 28.
+const double minStandardKeyWidth = 22;
+
+const double _keyGap = 3;
+
+/// How far each row is indented, as a fraction of a key. Physical keyboards
+/// stagger their rows and hands expect it.
+const double _stagger = 0.4;
+
+/// The largest key width at which every row of [rows] fits in [available].
+///
+/// Each row needs `stagger*i*w + n*(w + gap)`, so the binding row is whichever
+/// minimises `(available - n*gap) / (stagger*i + n)`. Clamped at both ends: it
+/// never grows past [standardKeyWidth], because a keyboard with enormous keys
+/// on a desktop looks broken, and never shrinks past [minStandardKeyWidth],
+/// below which the caller should scroll rather than keep scaling.
+double fitStandardKeyWidth(List<List<KeyCap>> rows, double available) {
+  var best = double.infinity;
+  for (var i = 0; i < rows.length; i++) {
+    final n = rows[i].length;
+    final width = (available - n * _keyGap) / (_stagger * i + n);
+    if (width < best) best = width;
+  }
+  if (best >= standardKeyWidth) return standardKeyWidth;
+  // Shaved by a hundredth of a pixel, but only when actually scaling down,
+  // because the exact solution lands on the wrong side of the boundary once
+  // the division is done in binary: the fit for a 377-pixel viewport
+  // multiplies back out to 377.00000000000006, and a row six ten-trillionths
+  // of a pixel too wide is still an overflow stripe across the keyboard.
+  return (best - 0.01).clamp(minStandardKeyWidth, standardKeyWidth);
+}
+
+/// Width the whole keyboard occupies at [width] per key.
+double standardKeyboardWidth(List<List<KeyCap>> rows, double width) {
+  var needed = 0.0;
+  for (var i = 0; i < rows.length; i++) {
+    final row = _stagger * i * width + rows[i].length * (width + _keyGap);
+    if (row > needed) needed = row;
+  }
+  return needed;
+}
+
 enum NamingKeyboardLayout {
+  /// Kedmanee (Thai) or QWERTY (English), with a shift key. The default.
+  standard,
+
   /// Dictionary order, no shift. Every character visible at once.
   alphabetical,
-
-  /// Kedmanee (Thai) or QWERTY (English), with a shift key.
-  standard,
 }
 
 /// One key: what it types unshifted, and what it types with shift held.
@@ -119,6 +169,11 @@ const List<List<KeyCap>> kThaiStandardRows = [
     KeyCap('ๆ', '๐'), KeyCap('ไ', '"'), KeyCap('ำ', 'ฎ'), KeyCap('พ', 'ฑ'),
     KeyCap('ะ', 'ธ'), KeyCap('ั', 'ํ'), KeyCap('ี', '๊'), KeyCap('ร', 'ณ'),
     KeyCap('น', 'ฯ'), KeyCap('ย', 'ญ'), KeyCap('บ', 'ฐ'), KeyCap('ล', ','),
+    // Kedmanee's backslash key. ฃ and ฅ are obsolete in modern writing and are
+    // here for the same reason they are in the alphabetical grid: this is the
+    // alphabet, not a curated subset, and the two layouts must offer the same
+    // characters or switching between them changes what can be typed.
+    KeyCap('ฃ', 'ฅ'),
   ],
   [
     KeyCap('ฟ', 'ฤ'), KeyCap('ห', 'ฆ'), KeyCap('ก', 'ฏ'), KeyCap('ด', 'โ'),
@@ -192,7 +247,7 @@ class NamingKeyboard extends StatefulWidget {
 
   const NamingKeyboard({
     super.key,
-    this.layout = NamingKeyboardLayout.alphabetical,
+    this.layout = NamingKeyboardLayout.standard,
     required this.onCharacter,
     required this.onBackspace,
   });
@@ -249,67 +304,80 @@ class _NamingKeyboardState extends State<NamingKeyboard> {
 
   Widget _buildStandard() {
     final rows = standardRows();
-    return SingleChildScrollView(
-      // Only scrolls when the viewport is narrower than the widest row. Keys
-      // keep their size rather than shrinking to fit — see the library comment
-      // on what that trades away.
-      scrollDirection: Axis.horizontal,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < rows.length; i++)
-            Padding(
-              padding: EdgeInsets.only(
-                // Staggered like a physical keyboard, so a patient who types
-                // on one finds the keys where their hands expect them.
-                left: i * standardKeyWidth * 0.4,
-                bottom: 4,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final cap in rows[i]) _StandardKey(
-                    cap: cap,
-                    shifted: _shift,
-                    onTap: () => _type(cap),
+    // Measured OUTSIDE any horizontal scroll view: inside one the width is
+    // unbounded and there is nothing to fit to.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final available = constraints.maxWidth;
+        final width = fitStandardKeyWidth(rows, available);
+        final keyboard = _standardKeys(rows, width);
+
+        // Scrolling is the last resort, reached only on a screen too narrow for
+        // even the minimum key size. Everywhere else every key is on screen,
+        // which is the point: a key reached by scrolling costs time that has
+        // nothing to do with finding the word.
+        return standardKeyboardWidth(rows, width) <= available
+            ? keyboard
+            : SingleChildScrollView(
+                scrollDirection: Axis.horizontal, child: keyboard);
+      },
+    );
+  }
+
+  Widget _standardKeys(List<List<KeyCap>> rows, double width) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < rows.length; i++)
+          Padding(
+            padding: EdgeInsets.only(
+              // Staggered like a physical keyboard, so a patient who types on
+              // one finds the keys where their hands expect them.
+              left: _stagger * i * width,
+              bottom: 4,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final cap in rows[i]) _StandardKey(
+                  cap: cap,
+                  shifted: _shift,
+                  width: width,
+                  onTap: () => _type(cap),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 4),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: width * 2.5,
+              height: standardKeyHeight,
+              child: ElevatedButton(
+                onPressed: () => setState(() => _shift = !_shift),
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  // Lit while armed, so the patient can see that the next key
+                  // will produce the character printed on top.
+                  backgroundColor:
+                      _shift ? Colors.blue.shade700 : Colors.grey.shade200,
+                  foregroundColor: _shift ? Colors.white : Colors.black87,
+                  elevation: 1,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    side: BorderSide(color: Colors.grey.shade400),
                   ),
-                ],
+                ),
+                child: const Icon(Icons.arrow_upward, size: 18),
               ),
             ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: standardKeyWidth * 2.5,
-                height: standardKeyHeight,
-                child: ElevatedButton(
-                  onPressed: () => setState(() => _shift = !_shift),
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    // Lit while armed, so the patient can see that the next key
-                    // will produce the character printed on top.
-                    backgroundColor:
-                        _shift ? Colors.blue.shade700 : Colors.grey.shade200,
-                    foregroundColor: _shift ? Colors.white : Colors.black87,
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      side: BorderSide(color: Colors.grey.shade400),
-                    ),
-                  ),
-                  child: const Icon(Icons.arrow_upward, size: 18),
-                ),
-              ),
-              const SizedBox(width: 4),
-              _backspace(
-                width: standardKeyWidth * 2.5,
-                height: standardKeyHeight,
-              ),
-            ],
-          ),
-        ],
-      ),
+            const SizedBox(width: 4),
+            _backspace(width: width * 2.5, height: standardKeyHeight),
+          ],
+        ),
+      ],
     );
   }
 
@@ -334,21 +402,29 @@ class _NamingKeyboardState extends State<NamingKeyboard> {
 class _StandardKey extends StatelessWidget {
   final KeyCap cap;
   final bool shifted;
+  final double width;
   final VoidCallback onTap;
 
   const _StandardKey({
     required this.cap,
     required this.shifted,
+    required this.width,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final upper = cap.shifted;
+    // Type scales with the key, or a narrow phone gets legends wider than the
+    // cap they sit on. Clamped so it never becomes unreadable at the low end
+    // or cartoonish at the high one. The combining marks are the constraint:
+    // they draw as two glyphs, "◌" plus the mark.
+    final baseSize = (width * 0.5).clamp(11.0, 16.0);
+    final upperSize = (width * 0.34).clamp(8.5, 11.0);
     return Padding(
-      padding: const EdgeInsets.only(right: 3),
+      padding: const EdgeInsets.only(right: _keyGap),
       child: SizedBox(
-        width: standardKeyWidth,
+        width: width,
         height: standardKeyHeight,
         child: ElevatedButton(
           onPressed: onTap,
@@ -368,8 +444,9 @@ class _StandardKey extends StatelessWidget {
               if (upper != null)
                 Text(
                   keyLabel(upper),
+                  maxLines: 1,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: upperSize,
                     // Emphasis follows the shift key, so while shift is armed
                     // the legend that will actually be typed is the dark one.
                     color: shifted ? Colors.blue.shade800 : Colors.grey.shade600,
@@ -378,8 +455,9 @@ class _StandardKey extends StatelessWidget {
                 ),
               Text(
                 keyLabel(cap.base),
+                maxLines: 1,
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: baseSize,
                   color: shifted ? Colors.grey.shade500 : Colors.black87,
                 ),
               ),

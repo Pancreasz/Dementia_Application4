@@ -46,7 +46,11 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: SingleChildScrollView(
-            child: NamingKeyboard(onCharacter: (_) {}, onBackspace: () {}),
+            child: NamingKeyboard(
+              layout: NamingKeyboardLayout.alphabetical,
+              onCharacter: (_) {},
+              onBackspace: () {},
+            ),
           ),
         ),
       ));
@@ -57,6 +61,19 @@ void main() {
       // Marks render with a dotted circle so a bare diacritic has something
       // to attach to.
       expect(find.text('◌ิ'), findsOneWidget);
+    });
+
+    test('both layouts offer the same characters', () {
+      // Switching layout mid-subtest must not change what can be typed. It is
+      // already a change of measurement; a change of alphabet as well would
+      // make a patient's failure depend on which keyboard they were handed.
+      final grid = {...kThaiConsonants, ...kThaiMarks};
+      final kedmanee = {
+        for (final row in kThaiStandardRows)
+          for (final cap in row) ...[cap.base, if (cap.shifted != null) cap.shifted!],
+      };
+      expect(grid.difference(kedmanee), isEmpty,
+          reason: 'characters on the grid but not on Kedmanee');
     });
 
     testWidgets('switches to the Latin alphabet in English mode',
@@ -74,12 +91,15 @@ void main() {
       expect(find.text('ก'), findsNothing);
     });
 
-    testWidgets('every key is the same size, so layout is not a variable',
-        (tester) async {
+    testWidgets('every key on the grid is the same size', (tester) async {
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: SingleChildScrollView(
-            child: NamingKeyboard(onCharacter: (_) {}, onBackspace: () {}),
+            child: NamingKeyboard(
+              layout: NamingKeyboardLayout.alphabetical,
+              onCharacter: (_) {},
+              onBackspace: () {},
+            ),
           ),
         ),
       ));
@@ -187,6 +207,50 @@ void main() {
       }, language: Language.en);
       expect(out, ['Q']);
       expect(find.text('Q'), findsOneWidget);
+    });
+
+    testWidgets('fits every key on a phone-width screen', (tester) async {
+      // The bug this replaces, reported 2026-09-08 from an iPhone at 393
+      // logical pixels: at a fixed 36-pixel key the twelve-key Kedmanee number
+      // row needed ~460, and the last keys of every row sat off the right edge.
+      // A key that cannot be reached is not a layout problem, it is a
+      // character the patient cannot type.
+      tester.view.physicalSize = const Size(393 * 3, 852 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      AppLanguage.current = Language.th;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: NamingKeyboard(onCharacter: (_) {}, onBackspace: () {}),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final screen = tester.view.physicalSize.width / tester.view.devicePixelRatio;
+      for (final row in kThaiStandardRows) {
+        for (final cap in row) {
+          final key = find.text(keyLabel(cap.base));
+          final right = tester.getBottomRight(key.first).dx;
+          expect(right, lessThanOrEqualTo(screen),
+              reason: '${cap.base} runs off the right edge');
+        }
+      }
+    });
+
+    test('key width scales down to fit, within limits', () {
+      // A wide screen keeps the design size rather than growing keys to fill it.
+      expect(fitStandardKeyWidth(kThaiStandardRows, 2000), standardKeyWidth);
+      // A phone shrinks them.
+      final phone = fitStandardKeyWidth(kThaiStandardRows, 377);
+      expect(phone, lessThan(standardKeyWidth));
+      expect(standardKeyboardWidth(kThaiStandardRows, phone),
+          lessThanOrEqualTo(377));
+      // And it stops shrinking rather than becoming untappable; the caller
+      // scrolls past that point.
+      expect(fitStandardKeyWidth(kThaiStandardRows, 60), minStandardKeyWidth);
     });
 
     testWidgets('draws standing vowels without a dotted circle', (tester) async {
@@ -324,34 +388,33 @@ void main() {
       expect(submitted.first.data['target'], isNotEmpty);
     });
 
-    testWidgets('offers both layouts and starts on the alphabetical one',
+    testWidgets('offers both layouts and starts on the standard one',
         (tester) async {
+      // The layout the patient's own phone has is the default; most people
+      // arrive already knowing where its keys are.
       await open(tester);
       expect(find.text('เรียงตามตัวอักษร'), findsOneWidget);
       expect(find.text('แป้นพิมพ์ปกติ (เกษมณี)'), findsOneWidget);
-      // The alphabetical grid puts every character on screen at once; Kedmanee
-      // hides half of them behind shift. ฐ is shift+[ on Kedmanee, so its
-      // presence as a plain key means the grid is showing.
-      expect(find.text('ฐ'), findsOneWidget);
-      expect(find.byIcon(Icons.arrow_upward), findsNothing);
+      expect(find.byIcon(Icons.arrow_upward), findsOneWidget);
     });
 
-    testWidgets('switching layout swaps the keys and is recorded',
+    testWidgets('switching to the alphabetical grid is recorded',
         (tester) async {
       await open(tester);
-      await tester.ensureVisible(find.text('แป้นพิมพ์ปกติ (เกษมณี)'));
+      await tester.ensureVisible(find.text('เรียงตามตัวอักษร'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('แป้นพิมพ์ปกติ (เกษมณี)'));
+      await tester.tap(find.text('เรียงตามตัวอักษร'));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.arrow_upward), findsOneWidget);
+      // No modifier on the grid — every character is on screen at once.
+      expect(find.byIcon(Icons.arrow_upward), findsNothing);
 
       final changes = LiveSession.current!.trace
           .forSubtest('naming')
           .where((e) => e.type == 'keyboard-layout')
           .toList();
       expect(changes, hasLength(1));
-      expect(changes.single.data['layout'], 'standard');
+      expect(changes.single.data['layout'], 'alphabetical');
     });
 
     testWidgets('records which layout each item was typed on', (tester) async {
@@ -362,7 +425,24 @@ void main() {
       final shown = LiveSession.current!.trace
           .forSubtest('naming')
           .firstWhere((e) => e.type == TraceEventType.itemShown);
-      expect(shown.data['layout'], 'alphabetical');
+      expect(shown.data['layout'], 'standard');
+    });
+
+    testWidgets('records the viewport the keys were laid out in',
+        (tester) async {
+      // Key size follows the screen now, so the viewport is what says whether
+      // two sessions had the same keyboard geometry.
+      await open(tester);
+      await tester.ensureVisible(find.text('ส่งคำตอบ'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ส่งคำตอบ'));
+      await tester.pumpAndSettle();
+
+      final submitted = LiveSession.current!.trace
+          .forSubtest('naming')
+          .firstWhere((e) => e.type == TraceEventType.submitted);
+      expect(submitted.data['viewportWidth'], isA<double>());
+      expect(submitted.data['viewportWidth'], greaterThan(0));
     });
 
     testWidgets('shows the next picture and marks it', (tester) async {

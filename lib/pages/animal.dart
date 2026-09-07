@@ -68,15 +68,15 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
 
   /// Which keyboard the patient is using.
   ///
-  /// Defaults to the alphabetical grid: nothing is hidden behind a modifier, so
-  /// a patient who has never touch-typed can find any character by scanning.
-  /// The standard layout is offered for patients who already type — they are
-  /// much faster on the keys their own phone has, and much slower on a
-  /// dictionary-ordered grid.
+  /// Defaults to the standard layout — Kedmanee or QWERTY, whichever the
+  /// administration language is — because it is the one the patient's own
+  /// phone has, and most people arrive already knowing where its keys are. The
+  /// alphabetical grid stays one tap away for anyone it does not suit, which
+  /// whoever is administering the test can see within a few keystrokes.
   ///
   /// Changing it mid-subtest is allowed but recorded, because timings either
   /// side of the change are not the same measurement.
-  NamingKeyboardLayout _layout = NamingKeyboardLayout.alphabetical;
+  NamingKeyboardLayout _layout = NamingKeyboardLayout.standard;
 
   static const Map<String, String> _animalImagesTh = {
     'assets/lion.png': 'สิงโต',
@@ -202,6 +202,15 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
       // part-way through an item, and the one in force at the end is what most
       // of the keystrokes were on.
       'layout': _layout.name,
+      // The standard keyboard's keys are sized to fit the screen, so key
+      // geometry is not constant between devices. Recording the width the keys
+      // were laid out in makes that checkable instead of merely warned about:
+      // two sessions with the same layout and the same viewport had the same
+      // keyboard, and two with different viewports did not. Raw, like every
+      // other trace field — the key size is derivable from it and the layout,
+      // and storing the derived number instead would fix today's formula
+      // forever.
+      'viewportWidth': MediaQuery.of(context).size.width,
     });
 
     setState(() {

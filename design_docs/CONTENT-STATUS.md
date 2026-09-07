@@ -176,11 +176,16 @@ page says so in as many words.
 
 **Two layouts are offered**, chosen on the page itself:
 
-| | Alphabetical (default) | Standard |
+| | Standard (default) | Alphabetical |
 |---|---|---|
-| Order | Dictionary — ก to ฮ, then vowels and marks | Kedmanee (Thai) / QWERTY (English) |
-| Shift | None. Every character is visible at once | Yes, with both legends on each key, shifted above |
-| Suits | A patient who has never touch-typed | A patient who already types on their own phone |
+| Order | Kedmanee (Thai) / QWERTY (English) | Dictionary — ก to ฮ, then vowels and marks |
+| Shift | Yes, with both legends on each key, shifted above | None. Every character is visible at once |
+| Suits | A patient who already types on their own phone | A patient who has never typed |
+
+Standard is the default since 2026-09-08: it is the layout the patient's own
+phone has, and most people arrive already knowing where its keys are. Both
+layouts offer the **same characters** — a test asserts it — so switching does
+not change what can be typed, only where it is.
 
 Kedmanee includes its number row because Thai needs it — ุ and ึ are unshifted
 on 6 and 7, and **ู, which อูฐ requires, is shift+6** — so one of the three test
@@ -193,12 +198,20 @@ subtest the analysis page withholds the typing baseline entirely** rather than
 averaging across it: a key that moved is not the same measurement, and a
 confident median built from two different tasks is worse than none.
 
-Key size is fixed logical pixels in both layouts, so layout is constant across
-patients — but not across *devices*, since logical pixels are not millimetres.
-The standard layout's widest row is about 460 logical pixels, so a narrow phone
-scrolls it horizontally, and a key reached by scrolling costs time that has
-nothing to do with word finding. Cross-patient timing comparison needs the same
-hardware; within-patient comparison, which is what the page actually does, does
+**Key size follows the viewport on the standard layout.** It was a fixed 36
+logical pixels until 2026-09-08, when a screenshot from an iPhone (393 logical
+pixels) showed the last two keys of every Kedmanee row sitting off the right
+edge — including ค and ต, which are ordinary consonants. A key that cannot be
+reached is not a layout problem, it is a character the patient cannot type, so
+the keys now scale to fit and only fall back to horizontal scrolling below a
+22-pixel minimum.
+
+The trade is deliberate and it costs something: **the ORDER is identical for
+everyone, the SIZE is not**. Within one patient on one device the timings are
+comparable, which is all the analysis page claims. Across devices they are not
+— so the viewport width is now recorded on every `submitted` event, which makes
+that checkable rather than merely asserted. Two sessions with the same layout
+and the same viewport had the same keyboard; two with different viewports did
 not.
 
 What is still not captured, and says so on the page: trail-making move times
