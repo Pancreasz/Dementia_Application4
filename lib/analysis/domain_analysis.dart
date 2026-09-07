@@ -254,6 +254,17 @@ List<Observation> _namingObservations(SessionRecord r) {
 
   final obs = <Observation>[];
 
+  // Which keyboard was used. A keypress on Kedmanee and one on the
+  // alphabetical grid are not the same event — the character sits somewhere
+  // else and is found a different way — so a session that switched layouts has
+  // no single baseline, and the intervals below are withheld rather than
+  // averaged across the two.
+  final layouts = <String>{
+    for (final e in events)
+      if (e.data['layout'] is String) e.data['layout'] as String,
+  };
+  final mixedLayouts = layouts.length > 1;
+
   // Every inter-key gap in the whole subtest, so a per-item gap can be read
   // against this patient's own typical pace rather than an invented one.
   final allGaps = <int>[];
@@ -262,7 +273,22 @@ List<Observation> _namingObservations(SessionRecord r) {
     if (events[i - 1].type != TraceEventType.keyPressed) continue;
     allGaps.add(events[i].atMs - events[i - 1].atMs);
   }
-  final median = _median(allGaps);
+  final median = mixedLayouts ? null : _median(allGaps);
+
+  if (layouts.length == 1) {
+    obs.add(Observation(layouts.first == 'standard'
+        ? t('ใช้แป้นพิมพ์แบบปกติ (เกษมณี/QWERTY) ซึ่งมีปุ่ม Shift',
+            'Typed on the standard layout (Kedmanee/QWERTY), which has a shift key.')
+        : t('ใช้แป้นพิมพ์แบบเรียงตามตัวอักษร ซึ่งแสดงทุกตัวอักษรพร้อมกัน',
+            'Typed on the alphabetical layout, which shows every character at once.')));
+  } else if (mixedLayouts) {
+    obs.add(Observation(
+      t(
+          'เปลี่ยนแป้นพิมพ์ระหว่างทำข้อนี้ จังหวะการพิมพ์ก่อนและหลังเปลี่ยนจึงเทียบกันไม่ได้ และไม่ได้นำมาคิดเป็นฐานของผู้เข้ารับการทดสอบ',
+          'The keyboard layout was changed during this subtest. Typing rhythm either side of the change is not the same measurement, so no typing baseline is reported for this session.'),
+      tone: ObservationTone.caution,
+    ));
+  }
 
   final items = <int>{
     for (final e in events)

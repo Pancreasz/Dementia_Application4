@@ -172,12 +172,34 @@ The confound is handled the way the plan requires: **time-to-first-key is
 reported in absolute terms, inter-key intervals never are.** A slow typist and
 a hesitant one are indistinguishable in absolute terms, so every interval is
 compared against that patient's own median across all three animals, and the
-page says so in as many words. The keyboard is a fixed logical key size in a
-fixed alphabetical order, which makes layout constant across patients — but not
-across *devices*, since logical pixels are not millimetres and a narrower
-screen wraps the rows differently. Cross-patient timing comparison needs the
-same hardware; within-patient comparison, which is what the page actually does,
-does not.
+page says so in as many words.
+
+**Two layouts are offered**, chosen on the page itself:
+
+| | Alphabetical (default) | Standard |
+|---|---|---|
+| Order | Dictionary — ก to ฮ, then vowels and marks | Kedmanee (Thai) / QWERTY (English) |
+| Shift | None. Every character is visible at once | Yes, with both legends on each key, shifted above |
+| Suits | A patient who has never touch-typed | A patient who already types on their own phone |
+
+Kedmanee includes its number row because Thai needs it — ุ and ึ are unshifted
+on 6 and 7, and **ู, which อูฐ requires, is shift+6** — so one of the three test
+words is untypeable without shift. A test asserts all three words are reachable
+on the layout.
+
+The layout is recorded on every `item-shown` and `submitted` event, and a
+change mid-subtest emits its own event. **If the layout changed during the
+subtest the analysis page withholds the typing baseline entirely** rather than
+averaging across it: a key that moved is not the same measurement, and a
+confident median built from two different tasks is worse than none.
+
+Key size is fixed logical pixels in both layouts, so layout is constant across
+patients — but not across *devices*, since logical pixels are not millimetres.
+The standard layout's widest row is about 460 logical pixels, so a narrow phone
+scrolls it horizontally, and a key reached by scrolling costs time that has
+nothing to do with word finding. Cross-patient timing comparison needs the same
+hardware; within-patient comparison, which is what the page actually does, does
+not.
 
 What is still not captured, and says so on the page: trail-making move times
 and per-subtraction timing on Serial 7s.

@@ -12,6 +12,45 @@ void main() {
   runApp(const MaterialApp(home: AnimalMocaTestPage()));
 }
 
+/// Picks the keyboard layout. Small and above the keys rather than in a
+/// settings screen: whoever is administering the test needs to change it in
+/// front of the patient, once, before they start typing.
+class _LayoutToggle extends StatelessWidget {
+  final NamingKeyboardLayout layout;
+  final ValueChanged<NamingKeyboardLayout> onChanged;
+
+  const _LayoutToggle({required this.layout, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget button(NamingKeyboardLayout value, String label) {
+      final selected = layout == value;
+      return ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: selected ? Colors.blue.shade700 : Colors.grey.shade200,
+          foregroundColor: selected ? Colors.white : Colors.black87,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          elevation: selected ? 2 : 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        onPressed: () => onChanged(value),
+        child: Text(label, style: const TextStyle(fontSize: 13)),
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        button(NamingKeyboardLayout.alphabetical,
+            t('เรียงตามตัวอักษร', 'Alphabetical')),
+        const SizedBox(width: 8),
+        button(NamingKeyboardLayout.standard,
+            t('แป้นพิมพ์ปกติ (เกษมณี)', 'Standard (QWERTY)')),
+      ],
+    );
+  }
+}
+
 class AnimalMocaTestPage extends StatefulWidget {
   const AnimalMocaTestPage({super.key});
 
@@ -26,6 +65,18 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
   /// prediction and its device-dependent layout — never opens. See
   /// `lib/moca/naming_keyboard.dart`.
   String _answer = '';
+
+  /// Which keyboard the patient is using.
+  ///
+  /// Defaults to the alphabetical grid: nothing is hidden behind a modifier, so
+  /// a patient who has never touch-typed can find any character by scanning.
+  /// The standard layout is offered for patients who already type — they are
+  /// much faster on the keys their own phone has, and much slower on a
+  /// dictionary-ordered grid.
+  ///
+  /// Changing it mid-subtest is allowed but recorded, because timings either
+  /// side of the change are not the same measurement.
+  NamingKeyboardLayout _layout = NamingKeyboardLayout.alphabetical;
 
   static const Map<String, String> _animalImagesTh = {
     'assets/lion.png': 'สิงโต',
@@ -75,11 +126,18 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
   }
 
   /// The origin every typing latency for this item is measured from.
+  ///
+  /// Carries the layout, because a keypress on Kedmanee and one on the
+  /// alphabetical grid are not the same event: the same character sits in a
+  /// different place, found a different way. Without this, a session where the
+  /// clinician switched layouts halfway would produce a within-patient
+  /// baseline built from two different tasks, and nothing would say so.
   void _markItemShown() {
     if (currentIndex >= shuffledAnimals.length) return;
     _mark(TraceEventType.itemShown, data: {
       'itemIndex': currentIndex,
       'target': shuffledAnimals[currentIndex].value,
+      'layout': _layout.name,
     });
   }
 
@@ -140,6 +198,10 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
       'answer': _answer,
       'target': shuffledAnimals[currentIndex].value,
       'correct': correct,
+      // Recorded again here, not only on item-shown: the layout can be switched
+      // part-way through an item, and the one in force at the end is what most
+      // of the keystrokes were on.
+      'layout': _layout.name,
     });
 
     setState(() {
@@ -246,8 +308,24 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
+                  _LayoutToggle(
+                    layout: _layout,
+                    onChanged: (layout) {
+                      if (layout == _layout) return;
+                      setState(() => _layout = layout);
+                      // A layout change is a change of task, so it goes in the
+                      // trace rather than being inferred from a gap in the
+                      // timings.
+                      _mark('keyboard-layout', data: {
+                        'itemIndex': currentIndex,
+                        'layout': layout.name,
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 8),
                   NamingKeyboard(
+                    layout: _layout,
                     onCharacter: _onCharacter,
                     onBackspace: _onBackspace,
                   ),

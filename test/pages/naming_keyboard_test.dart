@@ -96,6 +96,111 @@ void main() {
     });
   });
 
+  group('the standard layout', () {
+    Future<List<String>> typed(
+      WidgetTester tester,
+      Future<void> Function(WidgetTester) actions, {
+      Language language = Language.th,
+    }) async {
+      AppLanguage.current = language;
+      final out = <String>[];
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: NamingKeyboard(
+              layout: NamingKeyboardLayout.standard,
+              onCharacter: out.add,
+              onBackspace: () {},
+            ),
+          ),
+        ),
+      ));
+      await actions(tester);
+      return out;
+    }
+
+    testWidgets('prints both legends, shifted above unshifted', (tester) async {
+      await typed(tester, (t) async {});
+      // 6 on Kedmanee: ุ unshifted, ู with shift. Both are combining marks, so
+      // both are drawn on a dotted circle.
+      final base = tester.getTopLeft(find.text('◌ุ'));
+      final upper = tester.getTopLeft(find.text('◌ู'));
+      expect(upper.dy, lessThan(base.dy),
+          reason: 'the shifted character belongs on top, as on a real keycap');
+      // Same key, so the same column.
+      expect((upper.dx - base.dx).abs(), lessThan(standardKeyWidth));
+    });
+
+    testWidgets('types the unshifted character by default', (tester) async {
+      final out = await typed(tester, (t) async {
+        await t.tap(find.text('ก'));
+        await t.pump();
+      });
+      expect(out, ['ก']);
+    });
+
+    testWidgets('shift types the character printed on top', (tester) async {
+      // อูฐ needs shift+6 for ู, so this is not a hypothetical: one of the
+      // three test words is untypeable without shift.
+      final out = await typed(tester, (t) async {
+        await t.tap(find.byIcon(Icons.arrow_upward));
+        await t.pump();
+        await t.tap(find.text('◌ุ'));
+        await t.pump();
+      });
+      expect(out, ['ู']);
+    });
+
+    testWidgets('shift releases itself after one key', (tester) async {
+      final out = await typed(tester, (t) async {
+        await t.tap(find.byIcon(Icons.arrow_upward));
+        await t.pump();
+        await t.tap(find.text('ด'));
+        await t.pump();
+        await t.tap(find.text('ด'));
+        await t.pump();
+      });
+      // shift+f is โ; the second press is the plain key again.
+      expect(out, ['โ', 'ด']);
+    });
+
+    testWidgets('all three Thai animal names are typeable on it',
+        (tester) async {
+      final available = {
+        for (final row in kThaiStandardRows)
+          for (final cap in row) ...[cap.base, if (cap.shifted != null) cap.shifted!],
+      };
+      for (final word in ['สิงโต', 'อูฐ', 'แรด']) {
+        for (final character in word.split('')) {
+          expect(available, contains(character),
+              reason: '$character of $word is not on the Kedmanee layout');
+        }
+      }
+    });
+
+    testWidgets('uses QWERTY with capitals in English mode', (tester) async {
+      final out = await typed(tester, (t) async {
+        await t.tap(find.byIcon(Icons.arrow_upward));
+        await t.pump();
+        await t.tap(find.text('q'));
+        await t.pump();
+      }, language: Language.en);
+      expect(out, ['Q']);
+      expect(find.text('Q'), findsOneWidget);
+    });
+
+    testWidgets('draws standing vowels without a dotted circle', (tester) async {
+      // เ แ โ ใ ไ sit on the line like a consonant. Printing them as ◌เ was a
+      // real bug in the first version of this keyboard.
+      expect(keyLabel('เ'), 'เ');
+      expect(keyLabel('ๆ'), 'ๆ');
+      // Combining marks do get one, because a bare diacritic has nothing to
+      // attach to.
+      expect(keyLabel('ิ'), '◌ิ');
+      expect(keyLabel('่'), '◌่');
+    });
+  });
+
   group('the naming page', () {
     Future<void> open(WidgetTester tester) async {
       await LiveSession.start(store: _FakeStore());
@@ -217,6 +322,47 @@ void main() {
       expect(submitted.first.data['answer'], 'ก');
       expect(submitted.first.data['correct'], false);
       expect(submitted.first.data['target'], isNotEmpty);
+    });
+
+    testWidgets('offers both layouts and starts on the alphabetical one',
+        (tester) async {
+      await open(tester);
+      expect(find.text('เรียงตามตัวอักษร'), findsOneWidget);
+      expect(find.text('แป้นพิมพ์ปกติ (เกษมณี)'), findsOneWidget);
+      // The alphabetical grid puts every character on screen at once; Kedmanee
+      // hides half of them behind shift. ฐ is shift+[ on Kedmanee, so its
+      // presence as a plain key means the grid is showing.
+      expect(find.text('ฐ'), findsOneWidget);
+      expect(find.byIcon(Icons.arrow_upward), findsNothing);
+    });
+
+    testWidgets('switching layout swaps the keys and is recorded',
+        (tester) async {
+      await open(tester);
+      await tester.ensureVisible(find.text('แป้นพิมพ์ปกติ (เกษมณี)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('แป้นพิมพ์ปกติ (เกษมณี)'));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.arrow_upward), findsOneWidget);
+
+      final changes = LiveSession.current!.trace
+          .forSubtest('naming')
+          .where((e) => e.type == 'keyboard-layout')
+          .toList();
+      expect(changes, hasLength(1));
+      expect(changes.single.data['layout'], 'standard');
+    });
+
+    testWidgets('records which layout each item was typed on', (tester) async {
+      // Without this a session that switched layouts would produce a
+      // within-patient typing baseline built from two different tasks, and
+      // nothing would say so.
+      await open(tester);
+      final shown = LiveSession.current!.trace
+          .forSubtest('naming')
+          .firstWhere((e) => e.type == TraceEventType.itemShown);
+      expect(shown.data['layout'], 'alphabetical');
     });
 
     testWidgets('shows the next picture and marks it', (tester) async {

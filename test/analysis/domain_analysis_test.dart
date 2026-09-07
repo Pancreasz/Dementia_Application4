@@ -680,6 +680,58 @@ void main() {
           contains('no answer given'));
     });
 
+    test('names which keyboard was used', () {
+      final l = log();
+      l.add('naming', TraceEventType.itemShown,
+          data: {'itemIndex': 0, 'target': 'lion', 'layout': 'standard'});
+      addItem(l,
+          index: 0,
+          target: 'lion',
+          answer: 'lion',
+          correct: true,
+          shownAtMs: 0,
+          firstKeyAfterMs: 900,
+          gaps: [400]);
+      expect(texts(domain(record(animalScore: 3, trace: l), 'naming')).join(),
+          contains('standard layout'));
+    });
+
+    test('refuses a typing baseline when the layout changed mid-subtest', () {
+      // A key that moved is not the same measurement. Averaging across the
+      // change would produce a confident baseline built from two tasks.
+      final l = log();
+      l.add('naming', TraceEventType.itemShown,
+          data: {'itemIndex': 0, 'target': 'lion', 'layout': 'alphabetical'});
+      addItem(l,
+          index: 0,
+          target: 'lion',
+          answer: 'lion',
+          correct: true,
+          shownAtMs: 0,
+          firstKeyAfterMs: 900,
+          gaps: [400]);
+      l.add('naming', TraceEventType.itemShown,
+          data: {'itemIndex': 1, 'target': 'camel', 'layout': 'standard'});
+      addItem(l,
+          index: 1,
+          target: 'camel',
+          answer: 'camel',
+          correct: true,
+          shownAtMs: 20000,
+          firstKeyAfterMs: 900,
+          gaps: [1200]);
+
+      final d = domain(record(animalScore: 3, trace: l), 'naming');
+      final all = texts(d).join();
+      expect(
+        d.observations.where((o) => o.tone == ObservationTone.caution).map((o) => o.text).join(),
+        contains('not the same measurement'),
+      );
+      // And the baseline sentence is withheld entirely, not shown with a
+      // caveat next to it.
+      expect(all, isNot(contains('typing pace was')));
+    });
+
     test('the typing baseline is the patient, and says so', () {
       final l = log();
       addItem(l,

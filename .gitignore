@@ -14,6 +14,11 @@
 /typhoon-hf-model/
 /test_ct2.py
 /typhoon-large-v3-ct2/
+# Downloaded model checkpoints. Multi-gigabyte binaries that `git add -A` will
+# otherwise sweep into a commit — systran-whisper/model.bin alone is 1.5 GB.
+# Everything the backend actually loads lives under backend/models/, which is
+# ignored by backend/.gitignore and rebuilt by scripts/convert_model.py.
+/systran-whisper/
 .buildlog/
 .history
 .svn/
