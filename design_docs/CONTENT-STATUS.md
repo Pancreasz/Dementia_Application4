@@ -2,23 +2,27 @@
 
 All 29 implemented points are built and tested with final content, confirmed
 by the project owner on 2026-08-17. Nothing described here is placeholder.
-One external dependency remains before the voice subtests can score anything.
 
-## Blocking: the /transcribe endpoint
+*Status refreshed 2026-09-07.*
 
-Until the Flask backend implements it, all thirteen voice-scored points reach
-their error screen and can only be skipped. Vigilance (1 point) is unaffected —
-it is tap-based and needs no speech recognition.
+## No longer blocking: the /transcribe endpoint
 
-The contract is in
-`design_docs/superpowers/specs/2026-08-17-voice-subtests-design.md`. The
-reference implementation to port is `ad_hw/sidecar/asr_server.py`, which
-already works.
+This document previously recorded `/transcribe` as unbuilt, which made thirteen
+voice-scored points unscoreable. **That is resolved** — the endpoint is
+implemented in `backend/app.py` (inference in `backend/asr.py`) and every point
+now administers and scores end to end. The contract it was built against is in
+`design_docs/superpowers/specs/2026-08-17-voice-subtests-design.md`.
 
-One addition beyond that reference: the response must include `segments`
-(faster-whisper produces them and the sidecar currently discards them), because
-Verbal Fluency counts distinct segments rather than splitting text — Thai has
-no spaces between words, so text splitting cannot count words reliably.
+The response includes `segments`, which faster-whisper produces and the
+`ad_hw` sidecar discarded. They are still required, though not for the original
+reason: Verbal Fluency now counts distinct whitespace-separated tokens *across*
+segments rather than counting segments themselves, because the recognizer
+returns phrases and a whole 60-second answer arrived as a single segment. See
+`backend/CONTEXT.md`.
+
+What remains unverified is not plumbing but accuracy: the clock preprocessing
+transform and the ASR scoring thresholds. Both fail by returning a confident
+wrong number rather than an error.
 
 ## Supplied and in place — change only if the form changes
 
@@ -31,11 +35,11 @@ Confirmed by the project owner on 2026-08-17.
 | Fluency prompt | letter ก, cutoff ≥11 words in 60 s | `lib/moca/subtests.dart` |
 | Orientation place | โรงพยาบาลศิริราช | `lib/moca/session_config.dart` |
 | Orientation province | กรุงเทพ | `lib/moca/session_config.dart` |
-| Digit Span | 21854 forward, 247 backward | `lib/moca/subtests.dart` |
-| Vigilance | 29-digit sequence | `lib/moca/subtests.dart` |
+| Digit Span | 21854 forward, 247 backward (heard as 742) | `lib/moca/subtests.dart` + generated `digits-forward.wav` / `digits-backward.wav` |
+| Vigilance | 29-digit sequence | `lib/moca/subtests.dart` + generated `vigilance.wav` |
 | Abstraction | both pairs | `lib/moca/subtests.dart` |
 
-Two pairings are not enforced by any type and must be changed together:
+Three pairings are not enforced by any type and must be changed together:
 
 - **`expectedSentence` and its `stimulusAsset`.** The scorer compares speech
   against the text while the patient hears the audio. Editing one without
@@ -45,6 +49,18 @@ Two pairings are not enforced by any type and must be changed together:
   thing and scored on another produces what reads as a cognitive deficit.
   Setting `initialLetter` to null switches to category mode, where every
   distinct word counts.
+- **The digit sequences and their generated audio.** `kVigilanceSequence` and
+  Digit Span's `expectedSequence` values are the *scoring* side; the files the
+  patient actually hears are built from them by `tool/build_sequences.py`.
+  Change a sequence without re-running that script and the patient hears the old
+  digits while the scorer expects the new ones. Note the backward case is
+  deliberately not a copy: the patient hears **742** and is scored on **247**,
+  so the heard order lives in the script and the scored order in
+  `subtests.dart`.
+
+  ```bash
+  ./.venv/Scripts/python.exe tool/build_sequences.py
+  ```
 
 ## Known limitations
 
@@ -86,15 +102,11 @@ session — including the five pre-existing subtests — with no trace. For a
 screening instrument administered once per patient this is the
 highest-consequence property of the app.
 
-**f. The web build compiles but the voice chain does not run there.**
-`DeviceVoiceRecorder.start()` (`lib/moca/audio_recorder.dart:27`) calls
-`getTemporaryDirectory()` unconditionally, and `path_provider` has no web
-implementation (`pubspec.lock` has `record_web` and `audioplayers_web` but
-no `path_provider_web`). On web every voice subtest throws
-`MissingPluginException`, is skipped, and therefore **no category is ever
-assigned**. Anyone regenerating `docs/` via `flutter build web -o docs`
-must guard that call behind `kIsWeb` first, or state that web is
-legacy-only.
+**f. ~~The web build compiles but the voice chain does not run there.~~
+FIXED.** `DeviceVoiceRecorder` no longer calls `getTemporaryDirectory()`
+directly; `lib/moca/recording_sink.dart` picks a file target on native and a
+Blob on web, so voice subtests run in the browser. Web is now the primary
+target — the published build in `docs/` is what patients use.
 
 **g. `transcript` and `detail` on `SubtestOutcome` are written but never
 read** — no consumer anywhere in `lib/` outside `subtest_outcome.dart`

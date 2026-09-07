@@ -2,11 +2,15 @@
 
 Continuing this project in a new session? Start here.
 
-*Last updated 2026-08-27, after adding an English administration mode
-(language toggle on the home page, English content for every section, and
-three real scoring bugs found and fixed from an actual English test session)
-on top of the 2026-08-19 clock/orientation/web-target work. All of it is
-committed and pushed to `origin/main` in a single commit, `04783fd`.*
+*Last updated 2026-09-07, after replacing the per-digit stimulus streaming with
+one pre-merged audio file per sequence — which fixed digits going silent on
+mobile — and re-recording the English audio as WAV. Committed and pushed as
+`e40d6c8`.*
+
+*Before that, 2026-08-27 added an English administration mode (language toggle
+on the home page, English content for every section, and three real scoring bugs
+found and fixed from an actual English test session), on top of the 2026-08-19
+clock/orientation/web-target work, in `04783fd`.*
 
 ## What this project is
 
@@ -25,7 +29,7 @@ There are two repos side by side under `D:\moca_ad\`:
 
 ## Current state
 
-**29 of 30 MoCA points implemented, in Thai or English. 244 tests passing.
+**29 of 30 MoCA points implemented, in Thai or English. 247 tests passing.
 `flutter analyze` has no errors** (26 pre-existing warnings/infos in older
 code).
 
@@ -46,6 +50,44 @@ deliberately out of scope.
 | **Abstraction ×2** | **2** | new — voice |
 | **Orientation** | **6** | new — voice |
 
+## Fixed: digits were silent on mobile — 2026-09-07
+
+**Symptom.** Vigilance ("tap when you hear one") played every digit on a
+desktop browser and almost none on a phone, over the same deployment. No error
+appeared anywhere.
+
+**Root cause.** `DigitSequencePlayer` scheduled 29 separate `play()` calls
+1000 ms apart through a single shared player, each one calling `stop()` and
+swapping the source. The digit recordings run 1125–1387 ms, *longer than their
+slot*, so every digit was designed to interrupt the previous one. That only
+makes a sound if the digit's fetch and decode both finish inside 1000 ms.
+Measured in throttled Chromium: **29/29 digits audible at 3 Mbps, 0/29 at
+1 Mbps and below.** The failures were invisible because the player swallowed
+them with a bare `.catchError((_) {})`.
+
+**Fix.** `tool/build_sequences.py` now merges the individual digit recordings
+into one file per sequence, laying each digit at exactly one per second, and the
+player loads that single file. One fetch, one decode, one play; the spacing
+lives in the audio rather than in timers racing the network. The script reads
+`kVigilanceSequence` out of `subtests.dart` so the stimulus cannot drift from
+what the scorer expects.
+
+Two consequences worth knowing:
+
+- **Playback splits `load` from `start`** (`lib/moca/audio_player.dart`). The
+  fetch happens during the lead-in and the tap clock is anchored to sound
+  actually beginning, so a slow load now *delays* the sequence instead of
+  shifting every tap onto the wrong digit. This matters: vigilance scores by
+  bucketing taps into 1000 ms windows, so a constant offset would silently
+  misscore the whole run.
+- **Regenerate the audio after changing any sequence.** See the third pairing in
+  `design_docs/CONTENT-STATUS.md`.
+
+Also in this change: English audio is now WAV throughout. The `.m4a`/`.mp3`
+files are gone — several were already deleted from `assets/` while
+`subtests.dart` still named them, which meant **both English sentence
+repetition subtests were silently skipping**.
+
 ## English administration mode — added 2026-08-27
 
 The test can now be given in English. Two TH/EN buttons on the home page
@@ -60,14 +102,14 @@ build time rather than listening for changes.
 | `lib/moca/app_language.dart` | The switch itself: `AppLanguage.current` (`Language.th`/`Language.en`), the `t(th, en)` helper every page calls inline, plus `sectionLabel`/`categoryLabel` lookup tables for the handful of strings that live outside per-page literals (MoCA section headings, the `SessionTotal.category` values pinned by Thai text in their own tests). |
 | `lib/moca/subtest_spec.dart` | Every subtest now carries an English counterpart of each language-dependent field — `instructionEn`, `stimulusAssetEn`, `expectedSentenceEn`, `initialLetterEn` — plus `.instruction`/`.stimulusAssetForLanguage`/`.expectedSentenceForLanguage`/`.initialLetterForLanguage` getters that resolve against the current language. `expectedSequence` (digit span) has no English variant: digits are digits regardless of language, only the narrating audio differs. |
 | `lib/moca/subtests.dart` | The English content itself. Verbal fluency asks for the letter **F** (standard English MoCA administration) instead of ก. Sentence repetition's two English targets are tongue-twisters supplied by the project owner: "How can a clam cram in a clean cream can" and "The thirty-three thieves thought that they thrilled the throne." |
-| `lib/moca/digit_sequence_player.dart` | `digitAssetFor(digit, language:)` resolves to `eng-digit-N.mp3` in English mode instead of `digit-N.wav` — used both by Vigilance's per-digit taps and Digit Span's stimulus lookup. |
+| `lib/moca/digit_sequence_player.dart` | *(superseded 2026-09-07)* This carried `digitAssetFor(digit, language:)`, resolving one file per digit. Digits are no longer played one file at a time, so that function is gone; `vigilanceAssetFor(language:)` now picks between the two pre-merged files. |
 | `lib/moca/session_config.dart` | `SessionConfig.place`/`.province` are now language-aware getters ("Hospital"/"Bangkok" in English, unchanged in Thai) rather than `static const`. |
 | `lib/pages/*.dart` (all of them) | Every patient-facing string wrapped in `t('...', '...')`. Two pages needed more than string swaps: `animal.dart`'s naming-test answer key is a language-aware map (`lion`/`camel`/`rhino` vs `สิงโต`/`อูฐ`/`แรด`), and `larksen.dart`'s trail-making checkpoints alternate 1-A-2-B... instead of 1-ก-2-ข... in English mode. |
 
-English audio ships as mp3/m4a (`eng-digit-*.mp3`, `eng-digits-forward/backward.m4a`,
-`eng-sentence-1/2.m4a`) alongside the existing Thai wav files in
-`assets/moca/audio/` — no pubspec change needed, the folder is already
-wildcarded in. `audioplayers`' `AssetSource` plays either format identically.
+English audio originally shipped as mp3/m4a alongside the Thai wav files.
+*(Superseded 2026-09-07: it was re-recorded as WAV and the mp3/m4a files were
+deleted, so `assets/moca/audio/` is now WAV throughout.)* No pubspec change is
+needed either way — the folder is already wildcarded in.
 
 **Scoring had to change too, not just the UI**, because English speech
 doesn't map onto Thai-specific matching logic:
@@ -624,7 +666,17 @@ Two things a Flutter-side session should know:
 
 Nothing below can be settled by the test suite.
 
-1. **The stimulus recordings — now machine-checked, still not heard by a human.**
+1. **The stimulus recordings — machine-checked, still not heard by a human.**
+
+   > **The two digit-span rows below are stale.** `digits-forward.wav` and
+   > `digits-backward.wav` were *regenerated* on 2026-09-07 from the individual
+   > digit recordings, so the 2026-08-18 ASR check no longer describes the files
+   > that ship. What has been checked on the new files is that each one-second
+   > slot correlates to the intended source clip — which confirms the digits are
+   > in the right order, but is circular as to whether `digit-7.wav` actually
+   > says "seven". Only an ear settles that. The two sentence rows are unaffected;
+   > those recordings did not change.
+
    On 2026-08-18 all four were pushed through the live `/transcribe` endpoint and
    compared against what the specs claim. Three match:
 
@@ -651,7 +703,10 @@ Nothing below can be settled by the test suite.
    **Still needs headphones**, for the reason above and for item 2.
 2. **Vigilance timing by ear** — a ~1 s silence, then digits at a steady
    one-per-second with *no overlap*, especially across the three consecutive target
-   `1`s at positions 18–20.
+   `1`s at positions 18–20. Overlap is now impossible by construction: each digit
+   sits in its own 1000 ms slot in the merged file, and the longest clip is
+   ~560 ms of speech. What is still worth hearing is whether it *sounds* natural
+   at that spacing, and that the trimming did not clip any digit's onset.
 3. **A full session end to end**, all 17 hops, including that Delayed Recall
    advances to Orientation (that join point is covered only by a source-literal
    check, not a driven UI test).
@@ -710,11 +765,15 @@ Full detail in **`design_docs/CONTENT-STATUS.md`**. The ones that bite:
 
 | Doc | What it covers |
 |---|---|
+| `README.md` | Start here. Purpose, every subtest and how it scores, status, setup |
+| `design_docs/CONTENT-STATUS.md` | Test content, the three pairings, known limitations |
+| `backend/README.md` | How the service works today — endpoints, CORS, latency, validation |
+| `backend/CONTEXT.md` | Backend vocabulary (clock score, segment, transcript, skip vs zero) |
+| `backend/handout.md` | The original backend brief — historical, superseded by the two above |
 | `design_docs/superpowers/specs/2026-08-17-voice-subtests-design.md` | The design and the `/transcribe` contract |
 | `design_docs/superpowers/plans/2026-08-17-voice-subtests.md` | The 21-task implementation plan |
 | `design_docs/superpowers/plans/2026-08-17-voice-subtests-verification.md` | What was and was not verified |
-| `design_docs/CONTENT-STATUS.md` | Test content, pairings, known limitations |
-| `backend/handout.md` | The backend brief |
+| `tool/build_sequences.py` | Generates the Digit Span and Vigilance audio — re-run after changing a sequence |
 
 ## Knowledge graph — added 2026-08-19
 
@@ -732,7 +791,7 @@ answers questions from the existing graph without rebuilding it.
 
 ```powershell
 $env:PATH = "C:\Users\pumasin.p\dev\flutter\bin;$env:PATH"
-flutter test                     # 244 tests, ~15 s
+flutter test                     # 247 tests, ~18 s
 flutter test --reporter expanded # use this, not the default, when you need a
                                   # reliable line-per-test log to grep or
                                   # pipe through `tail` — the default compact
@@ -745,13 +804,21 @@ flutter run -d windows   # see gotcha 7 — has never built
 ## Git state
 
 On `main`, **working tree is clean and pushed** — `main` and `origin/main`
-match, at `04783fd` ("added eng version"), which carries the entire English
-mode plus the three scoring bug fixes above. Earlier
-clock/orientation/backend-wiring/web-target work from 2026-08-19 is in
-`67a8daa` and `ec4be44` beneath it. `docs/` still carries its usual
-pre-existing build drift (see gotcha 2/3) but nothing is staged or dirty
-right now. **`docs/` has not been rebuilt since `04783fd` landed** — the
-published GitHub Pages site does not yet include English mode; run the
-`flutter build web -o docs --base-href "/Dementia_Application4/"` command
-under gotcha 3 before expecting it live. Still true: never `git add -A`/`git
-add .` (gotcha 2) — name paths explicitly when you do commit next.
+match, at `e40d6c8` ("Merge digit stimuli into one file per sequence"), which
+carries the audio work above. Beneath it: `a626f60` (runtime backend URL
+override for the Pages demo), `db42e26` (Cloudflare tunnel script), `04783fd`
+(English mode plus three scoring bug fixes), and the 2026-08-19
+clock/orientation/web-target work in `67a8daa` / `ec4be44`.
+
+**`docs/` was rebuilt as part of `e40d6c8`**, so the published GitHub Pages
+site is current with `main` — English mode and the merged audio are both live.
+Rebuild it whenever you change anything under `lib/` or `assets/`:
+
+```powershell
+flutter build web --base-href /Dementia_Application4/ --output docs
+```
+
+Note that `flutter build web` does **not** clean its output directory: assets
+deleted from `assets/` linger in `docs/` and keep getting deployed. Fourteen
+such orphans were removed in `e40d6c8`. Still true: never `git add -A`/`git
+add .` (gotcha 2) — name paths explicitly when you commit.

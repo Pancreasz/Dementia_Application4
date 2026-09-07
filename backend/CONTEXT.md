@@ -14,11 +14,16 @@ _Avoid_: rating, grade, prediction (ambiguous).
 
 **Segment**:
 One span of transcript from faster-whisper — `{start, end, text}` — delimited by
-the speaker's own acoustic pauses, not by spelling. Verbal Fluency scores by
-counting *distinct* segments, because Thai has no spaces and the recognizer's
-spacing is arbitrary. Never discard or join them away.
-_Avoid_: word, token (both imply orthographic splitting, which is exactly what
-segments exist to avoid).
+the speaker's own acoustic pauses, not by spelling. `/transcribe` must return
+them; never discard or join them away.
+
+Verbal Fluency once scored by counting distinct *segments*, on the reasoning
+that Thai has no spaces and the speaker's pauses were the only trustworthy
+boundary. That was wrong in practice: faster-whisper returns *phrases*, so a
+whole 60-second answer came back as one segment and a good patient scored 0.
+The scorer now counts distinct whitespace-separated tokens across all segments
+(`lib/scoring/verbal_fluency.dart`). Segments still matter — they are what the
+tokens are drawn from — but they are no longer the unit of the count.
 
 **Transcript**:
 The full utterance text — every segment's text concatenated. The `text` field of

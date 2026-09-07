@@ -1,9 +1,16 @@
 # MoCA Backend — Handout
 
-Picking this up cold? Start here. Nothing in this directory is built yet — this
-document is the complete brief.
+> **This was the brief for building the backend, and the backend is now built.**
+> It is kept for the reasoning it records — why the contracts are shaped the way
+> they are, what is known and unknown about the clock model, and which risks were
+> accepted deliberately. For how the service works *today*, read
+> [README.md](README.md) and [CONTEXT.md](CONTEXT.md) instead; where this
+> document and those two disagree, they are right.
+>
+> Sections below still describing work as "to implement" are historical.
 
-*Written 2026-08-18, after the original backend source was lost.*
+*Written 2026-08-18, after the original backend source was lost. Status section
+updated 2026-09-07.*
 
 ## What this is
 
@@ -26,25 +33,24 @@ client, in one history, so that cannot happen again.
 
 | Piece | State |
 |---|---|
-| `/upload` endpoint | **Not built.** Contract is fixed by the app — see below. |
-| `/transcribe` endpoint | **Not built.** Contract already specified. |
+| `/upload` endpoint | **Built** — `app.py`, inference in `clock.py` |
+| `/transcribe` endpoint | **Built** — `app.py`, inference in `asr.py` |
+| `/health` endpoint | **Built** — reports per-model load state |
 | Clock model weights | **Recovered** — `moca_densenet.pth`, 28,440,806 bytes |
-| Clock preprocessing | **UNKNOWN** — see the warning below. This is the main risk. |
+| Clock preprocessing | **Still assumed, not proven** — the original training script is lost. Run `scripts/validate_clock.py` before trusting a score. |
 | Clock validation images | **Provided** — `clock_0.png` … `clock_3.png`, one per score |
-| ASR model | Chosen, not downloaded: `biodatlab/whisper-th-medium-combined` |
-| Reference implementation | `ad_hw/sidecar/asr_server.py` — a *working* ASR service |
+| ASR model | `biodatlab/whisper-th-medium-combined`, converted to CT2 int8 by `scripts/convert_model.py` |
+| ASR scoring accuracy | **Not validated against real patient speech** — see README |
+| Reference implementation | `ad_hw/sidecar/asr_server.py` — the *working* ASR service this was ported from |
 
-**The old Azure service is no longer deployed.** The owner confirmed this: the URL
-still appears in `clock.dart` only because it was live when that code was written.
-So both endpoints are down right now, and **the clock test's 3 points are already
-broken in the shipped app** — this is not a future risk, it is the current state.
+All 29 points now administer and score end to end. The two risks that outlived
+the build are the clock preprocessing transform and ASR accuracy: both produce a
+*confident wrong number* rather than an error, which is the failure mode to watch
+for. Neither is a code defect — they are unverified assumptions.
 
-Until `/transcribe` exists, **13 of the app's 29 points cannot score.** They reach
-an error screen and can only be skipped. Vigilance (1 point) is tap-based and is
-the only voice-section point that works today.
-
-That makes both endpoints equally load-bearing. `/transcribe` unblocks more points,
-but `/upload` is a regression from something that used to work.
+**The old Azure service is gone**, which is why the backend lives in this repo:
+it was separated once and lost. The stale URL that used to sit in `clock.dart` is
+no longer how the app finds the backend — see `lib/moca/backend_config.dart`.
 
 ---
 
