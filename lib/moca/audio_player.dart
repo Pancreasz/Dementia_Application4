@@ -48,6 +48,25 @@ class DeviceAudioPlayback implements AudioPlayback {
 
     await _player.stop();
 
+    // Fetch and decode BEFORE sounding anything, rather than calling play()
+    // and letting it do both.
+    //
+    // Reported 2026-09-07: the patient hears "4 2" from `digits-backward.wav`,
+    // which contains "7 4 2". The file is correct — all three digits are in it,
+    // and the 7 is the loudest sample in the file. What it is not is LONG:
+    // เจ็ด is a closed syllable and this recording of it runs 120 ms, against
+    // 190-390 ms for most digits. `build_sequences.py` places it 80 ms into the
+    // file, so the whole of the first digit lives inside the first 200 ms of
+    // playback — exactly the window a browser spends buffering after play() is
+    // called on an undecoded source. Digit span is scored on exact equality, so
+    // losing that one digit scores every patient 0 on backward span, and the
+    // app looks like it is working.
+    //
+    // Vigilance never had this problem because DigitSequencePlayer already
+    // splits load() from start() for a related reason (see its comment). This
+    // brings the one-shot path in line with it.
+    await _player.setSource(AssetSource(source));
+
     // Subscribe BEFORE starting playback. onPlayerComplete is a broadcast
     // stream, so a file that finishes before the subscription attaches would
     // leave this future pending forever — and the digit files are only about
@@ -58,7 +77,7 @@ class DeviceAudioPlayback implements AudioPlayback {
     // awaiting this future. Its unit tests use FakeAudioPlayback, so no test
     // in the suite can catch a hang here.
     final completed = _player.onPlayerComplete.first;
-    await _player.play(AssetSource(source));
+    await _player.resume();
     await completed;
   }
 

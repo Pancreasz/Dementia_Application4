@@ -227,15 +227,139 @@ DomainAnalysis _naming(SessionRecord r) => DomainAnalysis(
       maxScore: 3,
       administered: [t('ทายชื่อสัตว์ 3 ชนิด', 'Naming three animals')],
       skipped: const [],
-      observations: [
-        Observation(
-          t(
-              'ไม่ได้บันทึกการพิมพ์ไว้ จึงยังแยกไม่ได้ว่าเป็นการนึกคำไม่ออก หรือพิมพ์ผิด — ต้องมีแป้นพิมพ์ในแอปที่เก็บเวลาแต่ละปุ่มก่อน',
-              'No typing data is recorded, so a word that could not be retrieved cannot yet be told apart from a word that was mistyped. That needs the in-app keyboard the plan describes, capturing time-to-first-key and corrections.'),
-          tone: ObservationTone.notCaptured,
-        ),
-      ],
+      observations: _namingObservations(r),
     );
+
+/// Naming, from the in-app keyboard's raw key events.
+///
+/// The one confound that governs everything here: typing speed varies
+/// enormously with age and device familiarity, and this population is elderly.
+/// Time-to-first-key is fairly robust — it is retrieval, and a slow typist has
+/// not started typing yet either way. Inter-key intervals are NOT: a slow
+/// typist and a hesitant one look identical in absolute terms. So intervals are
+/// only ever reported against the patient's OWN median across all three
+/// animals, never against any external figure.
+List<Observation> _namingObservations(SessionRecord r) {
+  final events = r.trace.forSubtest('naming');
+  if (events.isEmpty) {
+    return [
+      Observation(
+        t(
+            'ไม่มีข้อมูลการพิมพ์สำหรับรอบนี้ — อาจเป็นเซสชันที่บันทึกไว้ก่อนมีแป้นพิมพ์ในแอป',
+            'No typing data for this session — it may have been recorded before the in-app keyboard existed.'),
+        tone: ObservationTone.notCaptured,
+      ),
+    ];
+  }
+
+  final obs = <Observation>[];
+
+  // Every inter-key gap in the whole subtest, so a per-item gap can be read
+  // against this patient's own typical pace rather than an invented one.
+  final allGaps = <int>[];
+  for (var i = 1; i < events.length; i++) {
+    if (events[i].type != TraceEventType.keyPressed) continue;
+    if (events[i - 1].type != TraceEventType.keyPressed) continue;
+    allGaps.add(events[i].atMs - events[i - 1].atMs);
+  }
+  final median = _median(allGaps);
+
+  final items = <int>{
+    for (final e in events)
+      if (e.data['itemIndex'] is num) (e.data['itemIndex'] as num).toInt(),
+  }.toList()
+    ..sort();
+
+  for (final index in items) {
+    final forItem = events
+        .where((e) => (e.data['itemIndex'] as num?)?.toInt() == index)
+        .toList();
+    final shown = forItem.where((e) => e.type == TraceEventType.itemShown);
+    final keys =
+        forItem.where((e) => e.type == TraceEventType.keyPressed).toList();
+    final deletes =
+        forItem.where((e) => e.type == TraceEventType.keyDeleted).length;
+    final submit =
+        forItem.where((e) => e.type == TraceEventType.submitted).toList();
+    if (submit.isEmpty) continue;
+
+    final answer = (submit.last.data['answer'] as String?) ?? '';
+    final target = (submit.last.data['target'] as String?) ?? '';
+    final correct = submit.last.data['correct'] == true;
+    final label = target.isEmpty ? '#${index + 1}' : target;
+
+    if (answer.isEmpty) {
+      obs.add(Observation(t('$label: ไม่ได้ตอบ', '$label: no answer given.')));
+      continue;
+    }
+
+    // Time to first keypress: the closest available proxy for word-finding.
+    final int? toFirstKey = (shown.isEmpty || keys.isEmpty)
+        ? null
+        : keys.first.atMs - shown.first.atMs;
+
+    obs.add(Observation(correct
+        ? t('$label: ตอบถูก', '$label: correct.')
+        : t('$label: ตอบว่า "$answer"', '$label: answered "$answer".')));
+
+    if (toFirstKey != null) {
+      obs.add(Observation(t(
+          '$label: เริ่มพิมพ์หลังเห็นภาพ ${(toFirstKey / 1000).toStringAsFixed(1)} วินาที',
+          '$label: started typing ${(toFirstKey / 1000).toStringAsFixed(1)} s after the picture appeared.')));
+    }
+
+    // The shape the plan names: a long search followed by fluent typing is
+    // retrieval difficulty, not motor difficulty.
+    final itemGaps = <int>[
+      for (var i = 1; i < keys.length; i++) keys[i].atMs - keys[i - 1].atMs,
+    ];
+    if (toFirstKey != null && median != null && itemGaps.isNotEmpty) {
+      final itemMedian = _median(itemGaps)!;
+      if (toFirstKey > 5000 && itemMedian <= median) {
+        obs.add(Observation(t(
+            '$label: ใช้เวลานานกว่าจะเริ่มพิมพ์ แล้วพิมพ์ต่อเนื่องตามปกติ — เป็นเรื่องการนึกคำ ไม่ใช่การพิมพ์',
+            '$label: a long pause before the first key, then typing at this patient\'s usual pace — the word was hard to retrieve, not hard to type.')));
+      }
+      // A mid-word stall, measured against this patient's own baseline.
+      final worst = itemGaps.reduce((a, b) => a > b ? a : b);
+      if (median > 0 && worst > median * 3 && worst > 2000) {
+        obs.add(Observation(t(
+            '$label: มีการหยุดกลางคำ ${(worst / 1000).toStringAsFixed(1)} วินาที เทียบกับจังหวะปกติของตนเองที่ ${(median / 1000).toStringAsFixed(1)} วินาที',
+            '$label: paused ${(worst / 1000).toStringAsFixed(1)} s mid-word, against this patient\'s own typical ${(median / 1000).toStringAsFixed(1)} s between keys.')));
+      }
+    }
+
+    if (deletes > 0) {
+      obs.add(Observation(t(
+          '$label: แก้ไข $deletes ครั้งระหว่างพิมพ์',
+          '$label: $deletes correction${deletes == 1 ? '' : 's'} while typing.')));
+    }
+
+    // A near-miss spelling is a typing error, not anomia. Flagged as a caution
+    // because it is a statement about the scoring, not about the patient — and
+    // deliberately NOT acted on: whether "camle" should still cost the point is
+    // a clinical decision, not one this page gets to make quietly.
+    if (!correct && target.isNotEmpty) {
+      final closeness = similarityRatio(answer.toLowerCase(), target.toLowerCase());
+      if (closeness >= 0.6) {
+        obs.add(Observation(
+          t(
+              '$label: "$answer" ต่างจาก "$target" เพียงเล็กน้อย (ความใกล้เคียง ${closeness.toStringAsFixed(2)}) — น่าจะเป็นการพิมพ์ผิดมากกว่าการนึกชื่อไม่ออก แต่ยังถูกนับเป็นตอบผิด',
+              '$label: "$answer" is one or two characters from "$target" (closeness ${closeness.toStringAsFixed(2)}) — that looks like a typing error rather than a naming failure, but it is still scored as wrong.'),
+          tone: ObservationTone.caution,
+        ));
+      }
+    }
+  }
+
+  if (median != null) {
+    obs.add(Observation(t(
+        'จังหวะการพิมพ์ปกติของผู้เข้ารับการทดสอบรายนี้คือ ${(median / 1000).toStringAsFixed(1)} วินาทีต่อตัวอักษร ใช้เป็นฐานเปรียบเทียบกับตนเองเท่านั้น ไม่ได้เทียบกับผู้อื่น',
+        'This patient\'s own typing pace was ${(median / 1000).toStringAsFixed(1)} s per character. It is used only to compare them against themselves — typing speed varies far too much with age and device familiarity to compare between people.')));
+  }
+
+  return obs;
+}
 
 DomainAnalysis _attention(SessionRecord r) {
   final obs = <Observation>[];
@@ -799,6 +923,18 @@ bool _isSubsequence(String part, String whole) {
     if (i < part.length && part[i] == char) i += 1;
   }
   return i == part.length;
+}
+
+/// Median rather than mean: one 30-second stare while the patient looks for a
+/// key would drag a mean far away from their actual pace, and the pace is what
+/// every other gap is compared against.
+int? _median(List<int> values) {
+  if (values.isEmpty) return null;
+  final sorted = List.of(values)..sort();
+  final mid = sorted.length ~/ 2;
+  return sorted.length.isOdd
+      ? sorted[mid]
+      : (sorted[mid - 1] + sorted[mid]) ~/ 2;
 }
 
 int _int(Map<String, dynamic> d, String key) => (d[key] as num?)?.toInt() ?? 0;

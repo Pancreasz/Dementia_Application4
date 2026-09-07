@@ -194,7 +194,7 @@ void main() {
       );
     });
 
-    test('naming has no keystroke capture', () {
+    test('naming says so for a session recorded before the keyboard existed', () {
       final d = domain(record(animalScore: 3), 'naming');
       expect(d.observations.single.tone, ObservationTone.notCaptured);
     });
@@ -507,6 +507,192 @@ void main() {
     test('a clean orientation carries no caution', () {
       final d = domain(oriented(allRight), 'orientation');
       expect(d.observations.where((o) => o.tone == ObservationTone.caution), isEmpty);
+    });
+  });
+
+  group('naming, from the in-app keyboard', () {
+    /// One naming item, laid out on a millisecond timeline.
+    ///
+    /// [gaps] are the intervals between successive keystrokes, so a test can
+    /// describe "fast typing after a long search" without arithmetic.
+    void addItem(
+      TraceLog log, {
+      required int index,
+      required String target,
+      required String answer,
+      required bool correct,
+      required int shownAtMs,
+      required int firstKeyAfterMs,
+      required List<int> gaps,
+      int deletes = 0,
+    }) {
+      final start = DateTime(2026, 9, 7);
+      var at = shownAtMs;
+      log.add('naming', TraceEventType.itemShown,
+          data: {'itemIndex': index, 'target': target},
+          at: start.add(Duration(milliseconds: at)));
+      at += firstKeyAfterMs;
+      for (var i = 0; i < answer.length; i++) {
+        if (i > 0) at += gaps[(i - 1) % gaps.length];
+        log.add('naming', TraceEventType.keyPressed,
+            data: {'itemIndex': index, 'key': answer[i], 'length': i + 1},
+            at: start.add(Duration(milliseconds: at)));
+      }
+      for (var i = 0; i < deletes; i++) {
+        at += 400;
+        log.add('naming', TraceEventType.keyDeleted,
+            data: {'itemIndex': index, 'length': answer.length},
+            at: start.add(Duration(milliseconds: at)));
+      }
+      at += 500;
+      log.add('naming', TraceEventType.submitted,
+          data: {
+            'itemIndex': index,
+            'answer': answer,
+            'target': target,
+            'correct': correct,
+          },
+          at: start.add(Duration(milliseconds: at)));
+    }
+
+    TraceLog log() => TraceLog(startedAt: DateTime(2026, 9, 7));
+
+    test('reports time to first keypress, the word-finding proxy', () {
+      final l = log();
+      addItem(l,
+          index: 0,
+          target: 'lion',
+          answer: 'lion',
+          correct: true,
+          shownAtMs: 0,
+          firstKeyAfterMs: 2400,
+          gaps: [500]);
+      expect(texts(domain(record(animalScore: 3, trace: l), 'naming')).join(),
+          contains('started typing 2.4 s after the picture appeared'));
+    });
+
+    test('a long search then fluent typing is retrieval, not motor', () {
+      final l = log();
+      addItem(l,
+          index: 0,
+          target: 'lion',
+          answer: 'lion',
+          correct: true,
+          shownAtMs: 0,
+          firstKeyAfterMs: 9000,
+          gaps: [400]);
+      addItem(l,
+          index: 1,
+          target: 'camel',
+          answer: 'camel',
+          correct: true,
+          shownAtMs: 20000,
+          firstKeyAfterMs: 1000,
+          gaps: [400]);
+      expect(texts(domain(record(animalScore: 3, trace: l), 'naming')).join(),
+          contains('hard to retrieve, not hard to type'));
+    });
+
+    test('a mid-word stall is measured against the patient, not a norm', () {
+      final l = log();
+      addItem(l,
+          index: 0,
+          target: 'camel',
+          answer: 'camel',
+          correct: true,
+          shownAtMs: 0,
+          firstKeyAfterMs: 1000,
+          // Three fast gaps then one long one.
+          gaps: [300, 300, 5000, 300]);
+      final t = texts(domain(record(animalScore: 3, trace: l), 'naming')).join();
+      expect(t, contains('paused 5.0 s mid-word'));
+      // Stated against their own baseline, never as a band or a percentile.
+      expect(t, contains("this patient's own typical"));
+      expect(t, isNot(contains('percentile')));
+    });
+
+    test('corrections are counted', () {
+      final l = log();
+      addItem(l,
+          index: 0,
+          target: 'camel',
+          answer: 'camel',
+          correct: true,
+          shownAtMs: 0,
+          firstKeyAfterMs: 800,
+          gaps: [300],
+          deletes: 2);
+      expect(texts(domain(record(animalScore: 3, trace: l), 'naming')).join(),
+          contains('2 corrections while typing'));
+    });
+
+    test('a near-miss spelling is flagged as a typo, and still scored wrong',
+        () {
+      // The plan's example: "camle" for camel is a typing error, not anomia.
+      // It is a caution because it is a statement about the scoring — and it
+      // is deliberately not acted on. Whether it should still cost the point
+      // is a clinical decision, not one this page makes quietly.
+      final l = log();
+      addItem(l,
+          index: 0,
+          target: 'camel',
+          answer: 'camle',
+          correct: false,
+          shownAtMs: 0,
+          firstKeyAfterMs: 900,
+          gaps: [300]);
+      final d = domain(record(animalScore: 2, trace: l), 'naming');
+      expect(
+        d.observations.where((o) => o.tone == ObservationTone.caution).map((o) => o.text).join(),
+        contains('typing error rather than a naming failure'),
+      );
+      expect(d.score, 2, reason: 'the score is untouched by the observation');
+    });
+
+    test('a genuinely different word is not called a typo', () {
+      final l = log();
+      addItem(l,
+          index: 0,
+          target: 'camel',
+          answer: 'horse',
+          correct: false,
+          shownAtMs: 0,
+          firstKeyAfterMs: 900,
+          gaps: [300]);
+      expect(
+          domain(record(animalScore: 2, trace: l), 'naming')
+              .observations
+              .where((o) => o.tone == ObservationTone.caution),
+          isEmpty);
+    });
+
+    test('no answer at all is distinguished from a wrong one', () {
+      final l = log();
+      addItem(l,
+          index: 0,
+          target: 'camel',
+          answer: '',
+          correct: false,
+          shownAtMs: 0,
+          firstKeyAfterMs: 0,
+          gaps: [300]);
+      expect(texts(domain(record(animalScore: 2, trace: l), 'naming')).join(),
+          contains('no answer given'));
+    });
+
+    test('the typing baseline is the patient, and says so', () {
+      final l = log();
+      addItem(l,
+          index: 0,
+          target: 'lion',
+          answer: 'lion',
+          correct: true,
+          shownAtMs: 0,
+          firstKeyAfterMs: 900,
+          gaps: [400]);
+      final t = texts(domain(record(animalScore: 3, trace: l), 'naming')).join();
+      expect(t, contains('only to compare them against themselves'));
+      expect(t, contains('varies far too much with age and device familiarity'));
     });
   });
 

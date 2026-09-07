@@ -37,6 +37,25 @@ ONSET_MS = 80
 """Where the speech starts inside its slot. Non-zero so a digit does not begin
 on the exact instant the previous slot ends, which reads as clipped."""
 
+LEAD_IN_MS = 500
+"""Silence before the FIRST digit of a digit-span file, and only there.
+
+Reported 2026-09-07: the patient heard "4 2" from a file containing "7 4 2".
+The 7 was in the file and was its loudest sample, but เจ็ด is a closed syllable
+and this recording runs 120 ms (most digits run 190-390 ms). Sitting at
+ONSET_MS it occupied 80-200 ms of playback, which is inside the window a
+browser spends buffering. `DeviceAudioPlayback.play` now decodes before
+sounding, which is the actual fix; this is the second line of defence, because
+digit span is scored on exact equality and one lost digit is an automatic zero
+that looks exactly like a patient failure.
+
+NOT applied to Vigilance. Its taps are bucketed by `offset ~/ intervalMs` from
+the first digit's onset, so silence in front of the digits would shift every
+digit off the grid the scorer assumes and charge every tap to the wrong one.
+Vigilance gets its lead-in from `SubtestSpec.leadInMs` instead — a delay before
+playback starts, which moves the patient's start cue without moving the digits
+relative to each other."""
+
 HEAD_MS, TAIL_MS = 30, 150
 """Kept either side of the detected speech, so the natural attack and decay
 survive the trim. A Thai digit's final consonant lives in that tail."""
@@ -104,10 +123,13 @@ def resample(samples, src_rate):
     return np.concatenate(out) if out else np.zeros(0, dtype=np.int16)
 
 
-def build(sequence, prefix, stem):
+def build(sequence, prefix, stem, lead_in_ms=0):
     digits = [AUDIO / f"{prefix}digit-{d}.wav" for d in sequence]
     _, rate = read_wav(digits[0])
-    track = np.concatenate([slot_for(p, rate) for p in digits])
+    slots = [slot_for(p, rate) for p in digits]
+    if lead_in_ms:
+        slots.insert(0, np.zeros(lead_in_ms * rate // 1000, dtype=np.int16))
+    track = np.concatenate(slots)
     track = resample(track, rate)
 
     dst = AUDIO / f"{prefix}{stem}.wav"
@@ -136,8 +158,9 @@ def vigilance_sequence():
 def main():
     vigilance = vigilance_sequence()
     for prefix in ("", "eng-"):
-        build(FORWARD, prefix, "digits-forward")
-        build(BACKWARD, prefix, "digits-backward")
+        build(FORWARD, prefix, "digits-forward", lead_in_ms=LEAD_IN_MS)
+        build(BACKWARD, prefix, "digits-backward", lead_in_ms=LEAD_IN_MS)
+        # No lead_in_ms here on purpose — see LEAD_IN_MS.
         build(vigilance, prefix, "vigilance")
 
 

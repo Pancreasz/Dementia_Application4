@@ -62,6 +62,10 @@ Three pairings are not enforced by any type and must be changed together:
   ./.venv/Scripts/python.exe tool/build_sequences.py
   ```
 
+  **Listen to what the script produces.** Item **k** below is a case where the
+  file was correct, every automated check passed, and the patient still heard
+  the wrong sequence. No test in this repo can hear.
+
 ## Known limitations
 
 **a. Windows build unverified.** `flutter build windows` fails on this
@@ -155,9 +159,61 @@ Two capture gaps were closed to make it work, both raw rather than derived:
 counts, and the delayed-recall page records the arrangement the patient
 produced instead of discarding it the moment the count was taken.
 
-What is still not captured, and says so on the page: trail-making move times,
-naming keystrokes (needs the in-app keyboard), and per-subtraction timing on
-Serial 7s.
+**Naming now has the in-app keyboard** (`lib/moca/naming_keyboard.dart`), which
+does two jobs. It captures keystrokes — `itemShown`, `keyPressed`, `keyDeleted`,
+`submitted`, all raw with offsets — so the analysis page can report
+time-to-first-key, mid-word stalls, corrections, the answer actually given, and
+whether a wrong answer was one or two characters from the target. It is also a
+*controlled input surface*: the page no longer contains a `TextField` at all,
+because the system keyboard brings autocorrect and Thai word prediction with
+it, and prediction can supply the very word the subtest is testing.
+
+The confound is handled the way the plan requires: **time-to-first-key is
+reported in absolute terms, inter-key intervals never are.** A slow typist and
+a hesitant one are indistinguishable in absolute terms, so every interval is
+compared against that patient's own median across all three animals, and the
+page says so in as many words. The keyboard is a fixed logical key size in a
+fixed alphabetical order, which makes layout constant across patients — but not
+across *devices*, since logical pixels are not millimetres and a narrower
+screen wraps the rows differently. Cross-patient timing comparison needs the
+same hardware; within-patient comparison, which is what the page actually does,
+does not.
+
+What is still not captured, and says so on the page: trail-making move times
+and per-subtraction timing on Serial 7s.
+
+**k. Digit Span Backward played "4 2" instead of "7 4 2". FIXED.** Reported by
+the project owner on 2026-09-07 from listening to the running app. The stimulus
+file was never wrong — all three digits are in `digits-backward.wav`, and the 7
+is the loudest sample in it. It is *short*: เจ็ด is a closed syllable and that
+recording runs **120 ms**, against 190–390 ms for most digits (only หก, at
+110 ms, is shorter). `build_sequences.py` placed it 80 ms into the file, so the
+entire first digit lived inside the first 200 ms of playback — precisely the
+window a browser spends buffering after `play()` is called on an undecoded
+source. Digit Span Backward is scored on exact equality, so **every patient
+scored 0 on it**, and the app looked like it was working.
+
+Two changes, because one of them is the cause and the other is insurance:
+
+- `DeviceAudioPlayback.play` now calls `setSource` and awaits it before
+  `resume()`, so decoding finishes before any sound is due. Vigilance never had
+  this bug because `DigitSequencePlayer` already split load from start for a
+  related reason; this brings the one-shot path in line.
+- `build_sequences.py` prepends **500 ms of silence** to the digit-span files
+  only. Not to Vigilance: its taps are bucketed by `offset ~/ intervalMs` from
+  the first digit's onset, so leading silence in the file would shift every
+  digit off the grid the scorer assumes and charge every tap to the wrong
+  digit. Vigilance takes its lead-in from `SubtestSpec.leadInMs` instead, which
+  delays the start without moving the digits relative to each other.
+
+`digits-forward.wav` and `digits-backward.wav` (and their `eng-` counterparts)
+were regenerated and are 500 ms longer; `vigilance.wav` rebuilt byte-identical,
+which is the check that the change was confined where it was meant to be.
+
+Still open: **nobody has confirmed by ear that the fix works**, and the 120 ms
+recording of เจ็ด is short enough that it may still be hard for an elderly
+patient to catch even when it plays cleanly. If it is, the answer is to
+re-record `digit-7.wav`, which needs the original speaker.
 
 **g2. Three unvalidated thresholds, now.** Tracked together because the count
 went up rather than down:
@@ -232,6 +288,15 @@ There is no setting to turn back. On the isolated ~1-second `digit-N.wav`
 stimuli it is worse still: typhoon returns **empty** for `digit-2` and
 `digit-4`, and hallucinates `"TODAY"` for `digit-7`, where the medium model's
 2026-08-18 smoke test at least got 2/7/0 right.
+
+**Narrowed by item k below.** The digit typhoon dropped is a **120 ms**
+recording of เจ็ด — the shortest-but-one digit in the Thai set, and short
+enough that the app's own playback was losing it too. So this is evidence that
+typhoon is weaker on *very short* utterances than the medium model, not that it
+drops leading digits generally: the first digit of `digits-forward.wav`
+(สอง, 340 ms) came through fine on both. The measurements above were taken
+against the pre-fix files, which had no lead-in silence; that changes the
+audio's length but not the speech in it.
 
 **This is the risk to watch, and it is not yet measured where it counts.** Every
 clip above is TTS stimulus. But a patient's *real* digit-span answer is also a

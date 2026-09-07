@@ -51,8 +51,19 @@ void main() {
 
     // Three animal images are quizzed; the answer's correctness does not
     // gate navigation, only reaching the third submission does.
+    //
+    // Typed on the in-app keyboard rather than into a TextField — there is no
+    // TextField on this page any more, deliberately: the system keyboard's
+    // autocorrect and Thai word prediction can supply the very word the
+    // subtest is testing. See lib/moca/naming_keyboard.dart.
     for (var i = 0; i < 3; i++) {
-      await tester.enterText(find.byType(TextField), 'x');
+      await tester.ensureVisible(find.text('ก'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ก'));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('ส่งคำตอบ'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('ส่งคำตอบ'));
       await tester.pumpAndSettle();
     }

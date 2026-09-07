@@ -101,6 +101,25 @@ abstract final class TraceEventType {
   /// against `digitPlayed`, computed later rather than stored.
   static const tap = 'tap';
 
+  /// A naming item's picture appeared. `data` carries {'itemIndex': 0,
+  /// 'target': 'อูฐ'}. This is the origin every typing latency is measured
+  /// from — time-to-first-key is the first [keyPressed] after it.
+  static const itemShown = 'item-shown';
+
+  /// One key on the in-app keyboard, with the character and how long the
+  /// answer was afterwards: {'key': 'อ', 'length': 1}. Inter-key intervals are
+  /// the differences between consecutive events, computed later; storing an
+  /// interval instead of a timestamp would make a variance impossible to
+  /// recover.
+  static const keyPressed = 'key-pressed';
+
+  /// Backspace. A separate type rather than a [keyPressed] with a special key
+  /// value, so self-correction is countable without inspecting payloads.
+  static const keyDeleted = 'key-deleted';
+
+  /// An answer was submitted: {'itemIndex', 'answer', 'target', 'correct'}.
+  static const submitted = 'submitted';
+
   /// Scoring began / finished, and what it produced. The `scored` event's
   /// `data` carries the subtest's score and maxScore so a trace is
   /// self-contained for review even in isolation.
