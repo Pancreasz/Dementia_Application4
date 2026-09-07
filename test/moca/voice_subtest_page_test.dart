@@ -6,6 +6,7 @@ import 'package:moca_main/moca/asr_client.dart';
 import 'package:moca_main/moca/audio_player.dart';
 import 'package:moca_main/moca/audio_recorder.dart';
 import 'package:moca_main/moca/session_controller.dart';
+import 'package:moca_main/moca/similarity_client.dart';
 import 'package:moca_main/moca/subtest_spec.dart';
 import 'package:moca_main/moca/subtests.dart';
 import 'package:moca_main/moca/voice_subtest_page.dart';
@@ -70,6 +71,7 @@ void main() {
     SubtestSpec s, {
     AsrClient? asr,
     AudioPlayback? playback,
+    SimilarityClient? similarity,
     Future<bool> Function(String)? assetExists,
   }) =>
       MaterialApp(
@@ -81,6 +83,16 @@ void main() {
             asr: asr ?? FakeAsrClient(text: 'ยานพาหนะ'),
             recorder: FakeVoiceRecorder(),
             playback: playback ?? FakeAudioPlayback(),
+            // These tests use abstraction-1 as their worked example, and
+            // abstraction is now scored by the backend. Without a fake here
+            // every one of them would reach for a real HTTP client. The value
+            // is the measured similarity for "ยานพาหนะ", the transcript the
+            // default FakeAsrClient returns.
+            similarity: similarity ??
+                FakeSimilarityClient(similarities: const {
+                  'ยานพาหนะ': 0.963,
+                  'รถไฟ': 0.511,
+                }),
             assetExists: assetExists,
           ),
         ),

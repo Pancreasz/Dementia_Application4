@@ -1,11 +1,13 @@
 """FastAPI app for the MoCA backend.
 
-Routes only — all inference lives in clock.py and asr.py. Both models load on
-background threads at startup so GET /health answers immediately.
+Routes only — all inference lives in clock.py, asr.py and embeddings.py. Every
+model loads on a background thread at startup so GET /health answers
+immediately.
 
 Endpoints:
   POST /upload      clock-drawing image  -> {message, filename, predicted_moca_score}
   POST /transcribe  Thai WAV             -> {text, segments} | 503 {detail}
+  POST /similarity  answer + terms       -> {similarities, best_term, best_score} | 503
   GET  /health      -> {status, detail, models}
 """
 
@@ -14,13 +16,15 @@ from __future__ import annotations
 import io
 import os
 from contextlib import asynccontextmanager
+from typing import List
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from asr import AsrModel, LoadState
 from clock import ClockModel
+from embeddings import SimilarityModel
 
 _WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), "moca_densenet.pth")
 
@@ -31,6 +35,7 @@ _WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), "moca_densenet.pth")
 # accessors below so a patched global takes effect.
 clock_model = ClockModel(_WEIGHTS_PATH)
 asr_model = AsrModel()
+similarity_model = SimilarityModel()
 
 
 def get_clock() -> ClockModel:
@@ -41,10 +46,18 @@ def get_asr() -> AsrModel:
     return asr_model
 
 
+def get_similarity() -> SimilarityModel:
+    return similarity_model
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     get_clock().start_loading()
     get_asr().start_loading()
+    # Third model on the cold-start bill. It is the smallest of the three
+    # (~470 MB) and loads in parallel with the other two, so it extends startup
+    # by less than it costs on its own.
+    get_similarity().start_loading()
     yield
 
 
@@ -156,14 +169,60 @@ async def transcribe(file: UploadFile = File(...), language: str = Form("th")):
     return result.to_dict()
 
 
+@app.post("/similarity")
+async def similarity(
+    answer: str = Body(..., embed=True),
+    terms: List[str] = Body(..., embed=True),
+):
+    """Cosine similarity between a patient's answer and each accepted term.
+
+    Backs abstraction scoring. Returns every similarity computed, plus the best
+    term and score for convenience — the caller applies the threshold, because
+    the threshold is an unvalidated number that belongs beside the app's other
+    two in lib/scoring/ rather than buried here.
+
+    503 while the model is loading or failed, matching /transcribe: a 200 with
+    all-zero similarities would be scored as the patient having answered wrongly.
+    """
+    model = get_similarity()
+    if not model.is_ready:
+        detail = "model not loaded" if model.state == LoadState.LOADING else model.detail
+        raise HTTPException(status_code=503, detail=detail)
+
+    # An empty term list would make best_term meaningless and always score 0.
+    # That is a caller bug (a subtest id with no registered terms), not a patient
+    # finding, so it is a 400 rather than a silent zero.
+    if not terms:
+        raise HTTPException(status_code=400, detail="no accepted terms supplied")
+
+    try:
+        scores = model.similarities(answer, terms)
+    except Exception as exc:  # noqa: BLE001 - encode failure -> 400, never 500
+        raise HTTPException(status_code=400, detail=f"could not embed answer: {exc}")
+
+    # An empty answer embeds to a zero vector and scores 0.0 against everything;
+    # max() over that is still well defined, so no special case is needed here.
+    best_term = max(scores, key=lambda term: scores[term])
+    return {
+        "similarities": scores,
+        "best_term": best_term,
+        "best_score": scores[best_term],
+        # Echoed so a stored session records WHICH model produced the numbers.
+        # Changing the model changes every similarity, and without this the old
+        # scores would be indistinguishable from the new ones on review.
+        "model": model.model_name,
+    }
+
+
 @app.get("/health")
 async def health():
-    """Aggregate health. status is 'error' if either model failed, 'loading'
-    if either is still loading, else 'ready'. Answers immediately during load.
+    """Aggregate health. status is 'error' if any model failed, 'loading'
+    if any is still loading, else 'ready'. Answers immediately during load.
     """
     clock = get_clock()
     asr = get_asr()
-    states = [clock.state, asr.state]
+    embed = get_similarity()
+    states = [clock.state, asr.state, embed.state]
     if LoadState.ERROR in states:
         status = LoadState.ERROR
     elif LoadState.LOADING in states:
@@ -173,10 +232,13 @@ async def health():
 
     body = {
         "status": status.value,
-        "detail": f"clock: {clock.detail} | asr: {asr.detail}",
+        "detail": (
+            f"clock: {clock.detail} | asr: {asr.detail} | similarity: {embed.detail}"
+        ),
         "models": {
             "clock": {"status": clock.state.value, "detail": clock.detail},
             "asr": {"status": asr.state.value, "detail": asr.detail},
+            "similarity": {"status": embed.state.value, "detail": embed.detail},
         },
     }
     # 200 always: /health must be reachable to *diagnose* a bad load, so a

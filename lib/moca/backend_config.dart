@@ -40,6 +40,12 @@ final String kTranscribeEndpoint = '$kBackendBaseUrl/transcribe';
 /// integer — `clock.dart` assigns it straight to a Dart `int`.
 final String kClockUploadEndpoint = '$kBackendBaseUrl/upload';
 
+/// Multilingual sentence embeddings, used by abstraction scoring. Adding this
+/// moved abstraction from an offline pure-Dart rule to a network-dependent one:
+/// it now skips rather than scores when the backend is unreachable, the same as
+/// every other backend-scored subtest.
+final String kSimilarityEndpoint = '$kBackendBaseUrl/similarity';
+
 /// Liveness probe. Nothing calls this yet; it is here so a future pre-flight
 /// check does not reintroduce a second spelling of the base URL.
 final String kHealthEndpoint = '$kBackendBaseUrl/health';

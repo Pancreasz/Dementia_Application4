@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../moca/app_language.dart';
+import '../moca/live_session.dart';
 import 'score.dart';
 
 class AttentionTestPage extends StatefulWidget {
@@ -35,6 +39,8 @@ class _AttentionTestPageState extends State<AttentionTestPage> {
     } else if (score == 0) {
       attentionScore = 0;
     }
+
+    unawaited(LiveSession.current?.recordScores() ?? Future.value());
 
     // ScaffoldMessenger.of(context).showSnackBar(
     //   SnackBar(

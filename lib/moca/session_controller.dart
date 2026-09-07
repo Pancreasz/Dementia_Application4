@@ -11,6 +11,9 @@ import 'asr_client.dart';
 import 'audio_player.dart';
 import 'audio_recorder.dart';
 import 'digit_sequence_player.dart';
+import 'event_trace.dart';
+import 'live_session.dart';
+import 'similarity_client.dart';
 import 'subtest_spec.dart';
 
 enum SessionPhase { instruction, stimulus, recording, tapping, scoring, error, done }
@@ -22,6 +25,17 @@ class SubtestSessionController extends ChangeNotifier {
   final VoiceRecorder recorder;
   final AudioPlayback playback;
   final DateTime? referenceDate;
+
+  /// Only abstraction consults it. Constructed by default rather than required
+  /// so the eight other subtests need no extra wiring at their call sites.
+  final SimilarityClient similarity;
+
+  /// Where raw timestamped events are appended. Null when no session is in
+  /// progress — under `flutter test`, and on any page reached without going
+  /// through [LiveSession.start] — so every write below is null-guarded.
+  /// Tracing must never be the reason a subtest cannot be administered.
+  final TraceLog? trace;
+
   late final DigitSequencePlayer _digitPlayer;
 
   /// Injectable because asset resolution under `flutter test` is not
@@ -51,10 +65,14 @@ class SubtestSessionController extends ChangeNotifier {
     required this.asr,
     required this.recorder,
     required this.playback,
+    SimilarityClient? similarity,
     DigitSequencePlayer? digitPlayer,
+    TraceLog? trace,
     this.referenceDate,
     Future<bool> Function(String)? assetExists,
-  }) : _assetExists = assetExists ?? _bundleHasAsset {
+  })  : similarity = similarity ?? HttpSimilarityClient(),
+        trace = trace ?? LiveSession.current?.trace,
+        _assetExists = assetExists ?? _bundleHasAsset {
     _digitPlayer = digitPlayer ??
         DigitSequencePlayer(playback: playback, language: AppLanguage.current);
   }
@@ -84,12 +102,21 @@ class SubtestSessionController extends ChangeNotifier {
     unawaited(recorder.stop().catchError((_) => const <int>[]));
   }
 
+  /// Appends one event, if a session is in progress. Every call site goes
+  /// through this rather than `trace?.add(...)` so that adding tracing cannot
+  /// change control flow: it takes no arguments a caller has to compute and
+  /// returns nothing anyone branches on.
+  void _mark(String type, {Map<String, dynamic> data = const {}}) {
+    trace?.add(spec.id, type, data: data);
+  }
+
   Future<void> begin() async {
     _generation += 1;
     final generation = _generation;
     bool abandoned() => _generation != generation;
 
     _error = null;
+    _mark(TraceEventType.started);
 
     try {
       if (spec.responseMode == ResponseMode.tap) {
@@ -115,8 +142,12 @@ class SubtestSessionController extends ChangeNotifier {
         }
 
         _setPhase(SessionPhase.stimulus);
+        _mark(TraceEventType.stimulusStart);
         await playback.play(stimulus);
         if (abandoned()) return;
+        // The origin for every initiation-latency measurement on a voice
+        // subtest: time from the stimulus ending to the patient speaking.
+        _mark(TraceEventType.stimulusEnd);
       }
 
       // The microphone opens only here, strictly after playback has finished.
@@ -128,9 +159,13 @@ class SubtestSessionController extends ChangeNotifier {
         return;
       }
       _setPhase(SessionPhase.recording);
+      _mark(TraceEventType.recordingStart);
     } catch (e) {
       if (abandoned()) return;
       _error = e.toString();
+      // Recorded so a 0 that came from an outage is distinguishable afterwards
+      // from a 0 the patient earned.
+      _mark(TraceEventType.failed, data: {'where': 'begin', 'error': '$e'});
       _setPhase(SessionPhase.error);
     }
   }
@@ -157,12 +192,22 @@ class SubtestSessionController extends ChangeNotifier {
         // digit's onset, not at begin(), because the lead-in sits in between.
         _sequenceStartedAt = DateTime.now();
         _setPhase(SessionPhase.tapping);
+        _mark(TraceEventType.stimulusStart);
+        _markDigitOnsets();
       },
     );
     if (abandoned()) return;
+    _mark(TraceEventType.stimulusEnd);
 
     _setPhase(SessionPhase.scoring);
-    _complete(scoreItem(spec, taps: List.of(_taps), referenceDate: referenceDate));
+    // Vigilance never reaches the network (scoreVigilance is pure), so this
+    // await completes on the next microtask. The abandoned() re-check after it
+    // is kept anyway: the guard belongs to the await, not to the scorer, and
+    // dropping it would rot the moment any tap subtest gains a backend rule.
+    final outcome =
+        await scoreItem(spec, taps: List.of(_taps), referenceDate: referenceDate);
+    if (abandoned()) return;
+    _complete(outcome);
   }
 
   Future<void> finishRecording() async {
@@ -178,7 +223,11 @@ class SubtestSessionController extends ChangeNotifier {
     final generation = _generation;
     bool abandoned() => _generation != generation;
 
+    // Marked before the phase change so the offset is the moment the patient
+    // pressed submit, not the moment the microphone finished closing.
+    _mark(TraceEventType.recordingEnd);
     _setPhase(SessionPhase.scoring);
+    _mark(TraceEventType.scoringStart);
     try {
       final bytes = await recorder.stop();
       final AsrResult result = await asr.transcribe(
@@ -188,16 +237,55 @@ class SubtestSessionController extends ChangeNotifier {
       final List<AsrSegment> segments = result.segments;
 
       if (abandoned()) return;
-      _complete(scoreItem(
+      // Abstraction makes this second await a real network call, so the
+      // abandoned() check is repeated AFTER it. Without that, a skip() during
+      // the similarity request would be overwritten by the score that came
+      // back afterwards — the same stale-write bug the transcription await
+      // above is already guarded against.
+      final outcome = await scoreItem(
         spec,
         transcript: result.text,
         segments: segments,
         referenceDate: referenceDate,
-      ));
+        similarity: similarity,
+      );
+      if (abandoned()) return;
+      _complete(outcome);
     } catch (e) {
       if (abandoned()) return;
       _error = e.toString();
+      // Which subtests failed, and why, is exactly what tells a reviewer that
+      // a low total reflects a backend outage rather than the patient.
+      _mark(TraceEventType.failed,
+          data: {'where': 'finishRecording', 'error': '$e'});
       _setPhase(SessionPhase.error);
+    }
+  }
+
+  /// Writes down when each digit sounds, at the moment the sequence starts.
+  ///
+  /// Computed from the sequence and interval rather than observed per digit,
+  /// because `DigitSequencePlayer` reports only the start of the whole run.
+  /// That makes these *scheduled* onsets, not measured ones — good enough for
+  /// error position across the 29 digits (the vigilance-decrement measure),
+  /// and honest about being derived from the schedule: `scheduled: true` says
+  /// so in the stored data rather than letting a later reader assume otherwise.
+  void _markDigitOnsets() {
+    final sequence = spec.sequence;
+    final target = spec.target;
+    if (sequence == null || target == null) return;
+    for (var i = 0; i < sequence.length; i++) {
+      trace?.add(
+        spec.id,
+        TraceEventType.digitPlayed,
+        data: {
+          'index': i,
+          'digit': sequence[i],
+          'isTarget': sequence[i] == target,
+          'offsetMs': i * spec.intervalMs,
+          'scheduled': true,
+        },
+      );
     }
   }
 
@@ -207,11 +295,20 @@ class SubtestSessionController extends ChangeNotifier {
     if (_phase != SessionPhase.tapping) return;
     final started = _sequenceStartedAt;
     if (started == null) return;
-    _taps.add(DateTime.now().difference(started).inMilliseconds);
+    final offsetMs = DateTime.now().difference(started).inMilliseconds;
+    _taps.add(offsetMs);
+    // Every tap, including ones the scorer collapses into a single window
+    // event. Misses vs. false taps, latency variance and vigilance decrement
+    // are all recomputed from these later — none of them are derived here.
+    _mark(TraceEventType.tap, data: {'sinceSequenceStartMs': offsetMs});
   }
 
   void retry() {
     _generation += 1;
+    // A subtest retried three times is not the same as one answered first
+    // time, even at the same score. Recorded before the state is reset so the
+    // attempt that is being abandoned is still identifiable in the trace.
+    _mark(TraceEventType.retried);
     _digitPlayer.stop();
     // The mic may still be open (phase was recording) or already mid-close
     // (phase was scoring, awaiting transcription). Either way retry() must
@@ -236,6 +333,19 @@ class SubtestSessionController extends ChangeNotifier {
 
   void _complete(SubtestOutcome outcome) {
     _outcome = outcome;
+    // The single place a subtest's result reaches the trace, so the two ways a
+    // subtest can end up skipped — the clinician pressing skip, and a declared
+    // stimulus failing to load — record identically. The score lands here as
+    // well as in the outcome, so a trace is self-contained for review even
+    // read on its own.
+    _mark(
+      outcome.skipped ? TraceEventType.skipped : TraceEventType.scored,
+      data: {
+        'score': outcome.score,
+        'maxScore': outcome.maxScore,
+        'skipped': outcome.skipped,
+      },
+    );
     _setPhase(SessionPhase.done);
   }
 

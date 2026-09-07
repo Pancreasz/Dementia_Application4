@@ -1,7 +1,10 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/material.dart';
+
 import 'package:moca_main/moca/app_language.dart';
+import 'package:moca_main/moca/live_session.dart';
 import 'package:moca_main/pages/score.dart';
 
 void main() {
@@ -285,6 +288,10 @@ class _GameScreenState extends State<GameScreen> {
     } else {
       larkScore = 0;
     }
+    // Persist at this subtest's own boundary. Without it the trail score is
+    // only written when the FIRST voice subtest completes, four screens later,
+    // so a crash before then loses it silently.
+    unawaited(LiveSession.current?.recordScores() ?? Future.value());
     Navigator.pushNamed(context, '/clock');
     // showDialog(
     //   context: context,

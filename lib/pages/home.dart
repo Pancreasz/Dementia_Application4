@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../moca/app_language.dart';
+import '../moca/live_session.dart';
+import '../moca/session_record.dart';
+import '../moca/session_store.dart';
 import 'score.dart';
 
 void resetScores() {
@@ -9,17 +14,73 @@ void resetScores() {
   totalScore = 0;
   attentionScore = 0;
   reorderScore = 0;
+  correctOrder.clear();
   voiceOutcomes.clear();
 }
 
+/// Clears the previous assessment and opens a durable record for the new one.
+///
+/// Deliberately a NEW session rather than resuming an unfinished one: pressing
+/// "start test" is an explicit statement that a new assessment is beginning,
+/// and silently dropping the clinician into a half-finished stranger's session
+/// would be worse than losing it. The old record stays on disk either way —
+/// `LiveSession.start` never deletes anything.
+Future<void> beginSession() async {
+  resetScores();
+  LiveSession.clearCurrent();
+  await LiveSession.start();
+}
+
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  /// Injectable so the resume offer can be tested. `flutter test` cannot
+  /// resolve the real documents directory, so without this the resume path
+  /// would be untestable UI — which is the state the persistence layer was
+  /// already in before it was wired up here.
+  final SessionStore? store;
+
+  const HomePage({super.key, this.store});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
+  /// An unfinished session found on disk at launch, or null.
+  ///
+  /// Without this the persistence layer would be write-only: sessions would be
+  /// saved faithfully and never offered back, which is most of the work and
+  /// none of the benefit.
+  SessionRecord? _resumable;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkForResumable();
+  }
+
+  Future<void> _checkForResumable() async {
+    // Storage failures are not surfaced to the clinician: a missing resume
+    // offer is indistinguishable from having nothing to resume, and neither is
+    // worth an error dialog on the home screen.
+    try {
+      final found = await (widget.store ?? SessionStore()).loadResumable();
+      if (mounted) setState(() => _resumable = found);
+    } catch (_) {}
+  }
+
+  /// Picks up the unfinished session and jumps to where it left off.
+  ///
+  /// Deliberately returns to the FIRST subtest rather than trying to work out
+  /// which screen the patient was on. The record knows what was scored, not
+  /// where the patient stood, and guessing wrong would re-administer a subtest
+  /// that already has a score — a practice effect on a real assessment. The
+  /// clinician can skip forward; the app must not invent a position.
+  Future<void> _resume() async {
+    await LiveSession.resumeOrStart(store: widget.store);
+    if (!mounted) return;
+    Navigator.pushNamed(context, '/larksen');
+  }
+
   void _showHelpDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -131,7 +192,11 @@ class _HomePageState extends State<HomePage> {
                 elevation: 5,
               ),
               onPressed: () {
-                resetScores();
+                // Not awaited: the first subtest must appear immediately, and
+                // the write is small. Anything scored before it lands is still
+                // captured, because every subtest saves the whole record
+                // rather than an increment.
+                unawaited(beginSession());
                 Navigator.pushNamed(context, '/larksen');
               },
               child: Text(
@@ -142,10 +207,47 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
+            if (_resumable != null) ...[
+              const SizedBox(height: 16),
+              // Offered below "start test", never instead of it. A stale record
+              // from a previous patient must not be the prominent action, and
+              // starting fresh has to stay the obvious default.
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.blue[800],
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: _resume,
+                child: Text(
+                  t('ทำแบบทดสอบที่ค้างไว้ต่อ', 'Resume unfinished test'),
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+              const SizedBox(height: 4),
+              // The start time, so a clinician can tell whether this is the
+              // patient in front of them or yesterday's abandoned session.
+              Text(
+                t('เริ่มเมื่อ ${_formatStarted(_resumable!.startedAt)}',
+                    'Started ${_formatStarted(_resumable!.startedAt)}'),
+                style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  static String _formatStarted(DateTime at) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${at.year}-${two(at.month)}-${two(at.day)} '
+        '${two(at.hour)}:${two(at.minute)}';
   }
 }
 

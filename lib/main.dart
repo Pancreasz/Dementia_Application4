@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:moca_main/pages/activities.dart';
 import 'package:moca_main/pages/animal.dart';
 import 'package:moca_main/pages/clock.dart';
 import 'package:moca_main/pages/home.dart';
@@ -35,6 +36,7 @@ class MyApp extends StatelessWidget {
         '/selectimages': (context) => SelectImagesPage(),
         '/reorderimages': (context) => ReorderImagesPage(),
         '/endpage': (context) => const EndPage(),
+        '/activities': (context) => const ActivitiesPage(),
         ...voiceSubtestRoutes(),
       },
     );

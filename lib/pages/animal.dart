@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../moca/app_language.dart';
+import '../moca/live_session.dart';
 import 'score.dart';
 
 void main() {
@@ -80,6 +84,7 @@ class _AnimalMocaTestPageState extends State<AnimalMocaTestPage> {
       currentIndex++;
       if (currentIndex >= shuffledAnimals.length) {
         animalScore = score;
+        unawaited(LiveSession.current?.recordScores() ?? Future.value());
         Navigator.pushReplacementNamed(context, '/digit-span-forward');
         quizFinished = true;
       }

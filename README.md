@@ -72,9 +72,21 @@ flutter run -d chrome --dart-define=MOCA_BACKEND_BASE_URL=https://example.net
 ### Running the tests
 
 ```powershell
-flutter test                     # ~219 tests
+flutter test                     # ~330 tests
 flutter analyze                  # static analysis
 ```
+
+Backend tests, from `backend/`:
+
+```bash
+../.venv/Scripts/python.exe -m pytest              # fast; fakes every model
+../.venv/Scripts/python.exe -m pytest -m slowmodel # loads the real embedding model
+```
+
+`slowmodel` is deselected by default. Those tests download ~470 MB and take
+~50 s to load, and they are the only check that the embedding model still
+ranks abstract abstraction answers above concrete ones — run them after
+changing the model or the accepted-term lists.
 
 ## Backend setup
 
@@ -90,7 +102,11 @@ python -m venv ../.venv
 ```
 
 That much is enough to run `/upload` (clock scoring) and the backend's own
-test suite. `/transcribe` (all voice subtests) additionally needs the ASR
+test suite. `/similarity` (abstraction scoring) needs a multilingual
+sentence-transformer, which `pip install -r requirements.txt` brings in and
+which downloads itself (~470 MB) on first startup — no separate step.
+
+`/transcribe` (all voice subtests) additionally needs the ASR
 model — a separate, heavier download (~1.6 GB → ~800 MB int8 after
 conversion):
 
@@ -110,4 +126,7 @@ curl http://localhost:8000/health
 ```
 
 `/health` reports `loading` until the models finish loading (model load can
-take 30–100+ s the first time), then `ok`.
+take 30–100+ s the first time), then `ok`. It covers three models now —
+`clock`, `asr` and `similarity` — and reports each separately, so a single
+failed load is diagnosable from the body rather than only visible as an
+aggregate `error`.

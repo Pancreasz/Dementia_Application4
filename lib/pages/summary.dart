@@ -1,12 +1,32 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:moca_main/moca/app_language.dart';
+import 'package:moca_main/moca/live_session.dart';
 import 'package:moca_main/moca/subtests.dart';
 import 'package:moca_main/scoring/session_total.dart';
 import 'score.dart';
 
-class EndPage extends StatelessWidget {
+class EndPage extends StatefulWidget {
   const EndPage({super.key});
 
+  @override
+  State<EndPage> createState() => _EndPageState();
+}
+
+class _EndPageState extends State<EndPage> {
+  @override
+  void initState() {
+    super.initState();
+    // Reaching this page is what "finished" means. Marking it here does two
+    // things: it pulls the last subtests' scores (delayed recall, orientation)
+    // into the durable record, and it stops this session being offered for
+    // resume — reopening the app afterwards should not drop the clinician back
+    // into an assessment that is already done.
+    //
+    // Stateful purely for this hook; the page itself has no state.
+    unawaited(LiveSession.current?.complete() ?? Future.value());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +127,34 @@ class EndPage extends StatelessWidget {
                   ),
                   
                   const SizedBox(height: 30),
-                  
+
+                  // Activities. Offered rather than shown automatically, and
+                  // worded as activities that engage the domains rather than
+                  // anything that follows from this patient's score — the page
+                  // itself is identical for everyone, deliberately.
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.blue.shade900,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 30, vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      side: BorderSide(color: Colors.blue.shade700, width: 1.5),
+                      textStyle: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/activities');
+                    },
+                    icon: const Icon(Icons.lightbulb_outline),
+                    label: Text(t("กิจกรรมที่ช่วยกระตุ้นสมอง", "Activities")),
+                  ),
+
+                  const SizedBox(height: 16),
+
                   // Restart Button
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(

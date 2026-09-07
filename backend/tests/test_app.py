@@ -7,12 +7,17 @@ from fastapi.testclient import TestClient
 
 import app as app_module
 from asr import LoadState, Segment, Transcription
-from conftest import FakeAsr, FakeClock
+from conftest import FakeAsr, FakeClock, FakeSimilarity
 
 
-def make_client(clock=None, asr=None, monkeypatch=None):
+def make_client(clock=None, asr=None, similarity=None, monkeypatch=None):
     monkeypatch.setattr(app_module, "clock_model", clock or FakeClock())
     monkeypatch.setattr(app_module, "asr_model", asr or FakeAsr())
+    # /health aggregates all three models, so leaving this one real would make
+    # every readiness assertion here depend on a 470 MB background download.
+    monkeypatch.setattr(
+        app_module, "similarity_model", similarity or FakeSimilarity()
+    )
     return TestClient(app_module.app)
 
 

@@ -7,6 +7,7 @@ import 'app_language.dart';
 import 'asr_client.dart';
 import 'audio_player.dart';
 import 'audio_recorder.dart';
+import 'live_session.dart';
 import 'score_log.dart';
 import 'session_controller.dart';
 import 'subtest_spec.dart';
@@ -78,6 +79,16 @@ class _VoiceSubtestPageState extends State<VoiceSubtestPage> {
       // this is the single choke point for logging a voice result.
       logSubtestOutcome(outcome);
       globals.voiceOutcomes[widget.spec.id] = outcome;
+      // Persist before navigating. This is the save point that matters: with
+      // it, the most a closed tab or a locked phone can cost is the subtest in
+      // progress rather than the whole session. Deliberately not awaited —
+      // navigation must not wait on a disk write, and LiveSession swallows its
+      // own write failures precisely so this cannot block the assessment.
+      //
+      // A null session means no assessment was started through the home page
+      // (tests, or a page opened directly), in which case there is nothing to
+      // persist and the globals behave exactly as they did before.
+      unawaited(LiveSession.current?.recordOutcome(outcome) ?? Future.value());
       Navigator.pushReplacementNamed(context, widget.nextRoute);
       return;
     }

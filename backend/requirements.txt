@@ -21,4 +21,10 @@ faster-whisper==1.2.1
 ctranslate2==4.8.1
 av==18.1.0
 
+# --- Abstraction similarity (/similarity) runtime ---
+# Multilingual sentence embeddings. The app is Thai/English, so an English-only
+# model is not usable; see embeddings.py for why MiniLM rather than LaBSE.
+# Pulls torch, which is already required above for the clock model.
+sentence-transformers==5.1.2
+
 numpy

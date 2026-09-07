@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../moca/app_language.dart';
+import '../moca/live_session.dart';
 import 'score.dart' as globals;
 
 class ReorderImagesPage extends StatefulWidget {
@@ -57,7 +61,11 @@ class _ReorderImagesPageState extends State<ReorderImagesPage> {
       }
     }
     globals.reorderScore = score;
-    
+
+    // Persist before leaving: delayed recall is otherwise only written when
+    // orientation completes, and orientation is skippable.
+    unawaited(LiveSession.current?.recordScores() ?? Future.value());
+
     // Navigate directly to end page
     Navigator.pushNamed(context, '/orientation');
   }

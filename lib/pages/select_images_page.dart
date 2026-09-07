@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../moca/app_language.dart';
+import '../moca/live_session.dart';
 import 'score.dart' as globals;
 
 class SelectImagesPage extends StatefulWidget {
@@ -240,6 +244,11 @@ class _SelectImagesPageState extends State<SelectImagesPage> {
                   onPressed: _canProceed()
                       ? () {
                           globals.correctOrder = selectedImages.cast<String>();
+                          // The order the patient set is what delayed recall
+                          // is scored against later. Losing it loses 5 points'
+                          // worth of scoring, not just a screen.
+                          unawaited(
+                              LiveSession.current?.recordScores() ?? Future.value());
                           Navigator.pushNamed(context, '/animal');
                         }
                       : null,

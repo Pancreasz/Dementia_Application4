@@ -94,13 +94,35 @@ means separating "retry transcription" from "retry administration".
 settings screen the `TODO` there describes, or two of Orientation's six
 points are wrong for every patient.
 
-**e. Nothing is persisted.** All scores live in module-level globals in
-`lib/pages/score.dart` (`animalScore`, `larkScore`, `clockScore`,
-`totalScore`, `attentionScore`, `reorderScore`, `correctOrder`,
-`voiceOutcomes`). An app kill, OS process kill, or crash loses the entire
-session — including the five pre-existing subtests — with no trace. For a
-screening instrument administered once per patient this is the
-highest-consequence property of the app.
+**e. ~~Nothing is persisted.~~ FIXED (partly).** Scores still live in the
+module-level globals in `lib/pages/score.dart` — every page reads them
+directly and that has not changed — but they are now mirrored into a durable
+`SessionRecord` and written after every subtest. `lib/moca/session_store.dart`
+picks a JSON file under the documents directory on native and localStorage on
+web, the same conditional-import split as `recording_sink.dart`;
+`lib/moca/live_session.dart` is what the pages call. An unfinished session is
+offered for resume on next launch, which restores the globals.
+
+All eleven scoring screens now persist at their own boundary: the five original
+subtests call `LiveSession.recordScores()` where they set their score, the nine
+voice/tap subtests go through `recordOutcome`, and the results page calls
+`complete()`. An unfinished session is offered on the home page below "start
+test", labelled with its start time; resuming restores the globals and returns
+to the FIRST subtest rather than guessing where the patient stood — the record
+knows what was scored, not which screen was open, and guessing wrong would
+re-administer a subtest that already has a score.
+
+Two things remain true and are worth stating plainly:
+
+- **The globals are still the live copy.** `LiveSession.syncFromGlobals` is
+  what keeps the two in step. Every screen that writes a score now calls it,
+  but nothing enforces that — a screen added later that writes a global and
+  navigates away will not be saved, and nothing will fail to say so.
+  Replacing the globals outright is still the correct end state.
+- **The web store is localStorage**, which a browser may clear and which a
+  private window may refuse outright. Writes fail silently by design — losing
+  persistence must not take down a session in progress — so a failed save is
+  invisible to the clinician.
 
 **f. ~~The web build compiles but the voice chain does not run there.~~
 FIXED.** `DeviceVoiceRecorder` no longer calls `getTemporaryDirectory()`
@@ -109,12 +131,37 @@ Blob on web, so voice subtests run in the browser. Web is now the primary
 target — the published build in `docs/` is what patients use.
 
 **g. `transcript` and `detail` on `SubtestOutcome` are written but never
-read** — no consumer anywhere in `lib/` outside `subtest_outcome.dart`
-itself. The design justifies shipping two unvalidated thresholds
-(Sentence Repetition's 0.9 similarity, Verbal Fluency's segment count) by
-saying the transcript is "stored for review". There is no review surface:
-the data dies with the process. Either build one, or treat those
-thresholds as unvalidatable in the field.
+read.** Half-addressed. They now survive the process — `SubtestOutcome.toJson`
+writes both, and item **e** persists the record — so the data no longer dies
+when the tab closes. What still does not exist is a **review surface**: nothing
+in the app displays a transcript, a similarity, or a raw event trace back to a
+human. Until something does, the three unvalidated thresholds below remain
+unvalidatable in practice, because nobody can see what they decided.
+
+**g2. Three unvalidated thresholds, now.** Tracked together because the count
+went up rather than down:
+
+| Number | Where | Status |
+|---|---|---|
+| Sentence repetition similarity ≥ 0.90 | `lib/scoring/sentence_repetition.dart` | Unvalidated |
+| Verbal fluency ≥ 11 words in 60 s | `lib/scoring/verbal_fluency.dart` | Unvalidated |
+| Abstraction embedding similarity ≥ 0.55 | `lib/scoring/abstraction.dart` | Unvalidated, **and known to sit inside a measured overlap** |
+
+The third is new, and it is the worst-characterised of the three, so the
+measurement behind it is written down rather than left implied. Against 25
+hand-written answers on 2026-09-07 (not patient data), **no single threshold
+separated both languages**: Thai's best-scoring wrong answer ("มีล้อทั้งคู่",
+they both have wheels) reached 0.547, above English's weakest correct answer
+("both are used for getting around") at 0.477. 0.55 therefore rejects the Thai
+concrete answer by 0.003 and rejects a correct English answer outright. Two
+per-language thresholds would fit those 25 cases and were deliberately not
+adopted — that fits invented data with a second invented constant.
+
+Mitigating this, abstraction stores the **full similarity map** for every
+answer (each accepted term and each stimulus word), plus the threshold applied
+and which rule failed. That is what makes re-choosing the number from real
+sessions possible without re-running a patient. It is also exactly the material
+the missing review surface in **g** would display.
 
 **h. `SessionConfig.place`/`.province` cannot be injected.**
 `lib/scoring/score_item.dart` reads the statics directly

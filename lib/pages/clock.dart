@@ -1,7 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+
+import '../moca/live_session.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
@@ -56,6 +60,10 @@ Future<void> saveCanvas(
         // line naming the actual type is the only clue that reaches anyone.
         logClockScore(predictedScore, filename: filename);
         clockScore = predictedScore;
+        // Persisted here rather than at the next navigation: the clock score
+        // arrives from the backend asynchronously, so the patient may already
+        // have moved on by the time it lands.
+        unawaited(LiveSession.current?.recordScores() ?? Future.value());
 
         // ScaffoldMessenger.of(context).showSnackBar(
         //   SnackBar(
