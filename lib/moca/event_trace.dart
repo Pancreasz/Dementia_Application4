@@ -101,6 +101,24 @@ abstract final class TraceEventType {
   /// against `digitPlayed`, computed later rather than stored.
   static const tap = 'tap';
 
+  /// Where the trail-making points were put, and how big the screen was:
+  /// {'points': [[x, y], ...], 'labels': [...], 'width': 393, 'height': 759}.
+  /// The layout is generated fresh every attempt, so the distance between two
+  /// points — and therefore how long the line between them should take — is
+  /// different in every session. Without this event a move time means nothing.
+  static const checkpointsPlaced = 'checkpoints-placed';
+
+  /// One finger-down to finger-up on the trail-making canvas, with the whole
+  /// path inside it: {'index': 3, 'points': [[x, y, atMs], ...]}. Point times
+  /// share the event's own clock — milliseconds from [TraceLog.startedAt] —
+  /// so a point and an event can be put on one timeline without a base offset.
+  ///
+  /// One event per stroke rather than one per sample, because a sample is not
+  /// a thing that happened to the patient; a stroke is. The samples are kept
+  /// whole inside it, at whatever rate the platform delivered them, rounded to
+  /// whole logical pixels — finer than a fingertip resolves.
+  static const stroke = 'stroke';
+
   /// A naming item's picture appeared. `data` carries {'itemIndex': 0,
   /// 'target': 'อูฐ'}. This is the origin every typing latency is measured
   /// from — time-to-first-key is the first [keyPressed] after it.

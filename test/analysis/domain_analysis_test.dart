@@ -774,6 +774,230 @@ void main() {
     });
   });
 
+  group('trail making, from the recorded strokes', () {
+    final base = DateTime(2026, 9, 7);
+    DateTime at(int ms) => base.add(Duration(milliseconds: ms));
+
+    /// A trail attempt: [strokes] is one [startMs, endMs] pair per stroke.
+    void writeAttempt(
+      TraceLog log, {
+      int attempt = 0,
+      required int startedMs,
+      required List<List<int>> strokes,
+      int? score,
+      bool linesCross = false,
+    }) {
+      log.add('trail-making', TraceEventType.checkpointsPlaced,
+          at: at(startedMs - 1),
+          data: {'attempt': attempt, 'width': 393, 'height': 759});
+      log.add('trail-making', TraceEventType.started,
+          at: at(startedMs), data: {'attempt': attempt});
+      for (var i = 0; i < strokes.length; i++) {
+        // Three samples per stroke: the ends are what the analysis reads, and
+        // a middle one proves it is not just taking first and last of a pair.
+        final s = strokes[i][0];
+        final e = strokes[i][1];
+        log.add('trail-making', TraceEventType.stroke, at: at(e), data: {
+          'attempt': attempt,
+          'index': i,
+          'points': [
+            [10, 10, s],
+            [20, 20, (s + e) ~/ 2],
+            [30, 30, e],
+          ],
+        });
+      }
+      if (score != null) {
+        log.add('trail-making', TraceEventType.scored,
+            at: at(strokes.last[1] + 10),
+            data: {
+              'score': score,
+              'maxScore': 1,
+              'attempt': attempt,
+              'linesCross': linesCross,
+            });
+      }
+    }
+
+    /// Nine strokes of one second each, separated by [gap] ms.
+    List<List<int>> evenStrokes({int from = 1000, int gap = 500, int n = 9}) {
+      final out = <List<int>>[];
+      var t = from;
+      for (var i = 0; i < n; i++) {
+        out.add([t, t + 1000]);
+        t += 1000 + gap;
+      }
+      return out;
+    }
+
+    TraceLog log() => TraceLog(startedAt: base);
+
+    String trail(SessionRecord r) =>
+        texts(domain(r, 'visuospatial-executive')).join('\n');
+
+    test('reports the total time and splits it into drawing and pausing', () {
+      final l = log();
+      // Start at 0, nine 1 s strokes with 500 ms between: 9 s down, 4 s up,
+      // the last gap being the one before stroke nine.
+      writeAttempt(l, startedMs: 0, strokes: evenStrokes(from: 500, gap: 500));
+      final text = trail(record(trace: l));
+      expect(text, contains('13.5 s in total'));
+      expect(text, contains('9.0 s with the finger down'));
+      expect(text, contains('4.5 s paused'));
+    });
+
+    test('time on task starts when the instructions are dismissed', () {
+      final l = log();
+      // 30 s reading the instructions before `started` must not be counted.
+      l.add('trail-making', TraceEventType.instructionShown, at: at(0));
+      writeAttempt(l,
+          startedMs: 30000, strokes: evenStrokes(from: 30500, gap: 500));
+      expect(trail(record(trace: l)), contains('13.5 s in total'));
+    });
+
+    test('names the longest pause and which line it came before', () {
+      final l = log();
+      final strokes = evenStrokes(from: 500, gap: 500);
+      // Push everything from the fifth stroke on 5 s later: a 5.5 s pause
+      // before line 5, against a 0.5 s typical gap.
+      for (var i = 4; i < strokes.length; i++) {
+        strokes[i] = [strokes[i][0] + 5000, strokes[i][1] + 5000];
+      }
+      writeAttempt(l, startedMs: 0, strokes: strokes);
+      final text = trail(record(trace: l));
+      expect(text, contains('longest pause was 5.5 s, before line 5'));
+      expect(text, contains('own typical 0.5 s'));
+    });
+
+    test('a pause is compared against this patient and no one else', () {
+      // A uniformly slow patient — every gap 4 s — has no *longest* pause to
+      // report, because nothing stands out from their own pace. Reporting one
+      // would mean comparing them against a figure this app does not have.
+      final l = log();
+      writeAttempt(l, startedMs: 0, strokes: evenStrokes(from: 4000, gap: 4000));
+      expect(trail(record(trace: l)), isNot(contains('longest pause')));
+    });
+
+    test('counts strokes against the nine a solution needs', () {
+      final l = log();
+      writeAttempt(l,
+          startedMs: 0, strokes: evenStrokes(from: 500, gap: 500, n: 13));
+      expect(trail(record(trace: l)), contains('13 strokes drawn'));
+      expect(trail(record(trace: l)), contains('4 more than the task requires'));
+    });
+
+    test('says so when fewer strokes than needed were drawn', () {
+      final l = log();
+      writeAttempt(l,
+          startedMs: 0, strokes: evenStrokes(from: 500, gap: 500, n: 5));
+      expect(trail(record(trace: l)), contains('only 5 of the 9 strokes'));
+    });
+
+    test('separates a crossing failure from a sequencing failure', () {
+      final crossed = log();
+      writeAttempt(crossed,
+          startedMs: 0,
+          strokes: evenStrokes(from: 500),
+          score: 0,
+          linesCross: true);
+      expect(trail(record(trace: crossed)), contains('two lines crossed'));
+
+      final outOfOrder = log();
+      writeAttempt(outOfOrder,
+          startedMs: 0,
+          strokes: evenStrokes(from: 500),
+          score: 0,
+          linesCross: false);
+      expect(trail(record(trace: outOfOrder)),
+          contains('not joined in the right order'));
+    });
+
+    test('a passed trail is given no failure reason', () {
+      final l = log();
+      writeAttempt(l, startedMs: 0, strokes: evenStrokes(from: 500), score: 1);
+      expect(trail(record(larkScore: 1, trace: l)), isNot(contains('lost')));
+    });
+
+    test('only the last attempt is described, and the restarts are named', () {
+      final l = log();
+      // A first attempt abandoned after two strokes, then a clean second one.
+      writeAttempt(l, startedMs: 0, strokes: [
+        [500, 1500],
+        [2000, 3000],
+      ]);
+      l.add('trail-making', TraceEventType.retried,
+          at: at(4000), data: {'attempt': 0});
+      writeAttempt(l,
+          attempt: 1, startedMs: 5000, strokes: evenStrokes(from: 5500));
+      final text = trail(record(trace: l));
+      expect(text, contains('restarted 1 time;'));
+      // 13.5 s, not the 18 s the two attempts add up to.
+      expect(text, contains('13.5 s in total'));
+      // And the two strokes of the abandoned attempt are not counted against
+      // the nine either.
+      expect(text, isNot(contains('strokes drawn')));
+    });
+
+    test('a restart is not reported as a failure on its own', () {
+      // The instructions themselves tell the patient to restart when a point
+      // lands off screen, so the wording must not read as a deficit.
+      final l = log();
+      l.add('trail-making', TraceEventType.retried,
+          at: at(100), data: {'attempt': 0});
+      writeAttempt(l, attempt: 1, startedMs: 200, strokes: evenStrokes(from: 500));
+      expect(trail(record(trace: l)), contains('not by itself a sign'));
+    });
+
+    test('every timed trail carries the random-layout caveat', () {
+      final l = log();
+      writeAttempt(l, startedMs: 0, strokes: evenStrokes(from: 500));
+      final d = domain(record(trace: l), 'visuospatial-executive');
+      expect(
+        d.observations
+            .where((o) => o.tone == ObservationTone.caution)
+            .map((o) => o.text)
+            .join(),
+        contains('cannot be compared between sessions'),
+      );
+    });
+
+    test('a session with no stroke capture says so instead of showing zeros', () {
+      final d = domain(record(), 'visuospatial-executive');
+      final notCaptured = d.observations
+          .where((o) => o.tone == ObservationTone.notCaptured)
+          .map((o) => o.text)
+          .join();
+      expect(notCaptured, contains('no timing was recorded'));
+      expect(notCaptured, contains('only pass/fail'));
+    });
+
+    test('an attempt with events but no strokes reports nothing measured', () {
+      final l = log();
+      l.add('trail-making', TraceEventType.started, at: at(0));
+      final d = domain(record(trace: l), 'visuospatial-executive');
+      expect(
+        d.observations
+            .where((o) => o.tone == ObservationTone.notCaptured)
+            .map((o) => o.text)
+            .join(),
+        contains('no strokes were recorded'),
+      );
+    });
+
+    test('the timings cannot move the status', () {
+      // The slowest, most hesitant trail the trace can describe, on a patient
+      // who still earned both points.
+      final l = log();
+      writeAttempt(l,
+          startedMs: 0,
+          strokes: evenStrokes(from: 20000, gap: 20000),
+          score: 1);
+      final d = domain(record(larkScore: 1, clockScore: 3, trace: l),
+          'visuospatial-executive');
+      expect(d.status, DomainStatus.full);
+    });
+  });
+
   group('framing', () {
     test('states that the level comes from the points alone', () {
       expect(analysisFraming.join(), contains('from nothing else'));

@@ -4,8 +4,12 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'package:moca_main/moca/app_language.dart';
+import 'package:moca_main/moca/event_trace.dart';
 import 'package:moca_main/moca/live_session.dart';
 import 'package:moca_main/pages/score.dart';
+
+/// The subtest id this page's trace events are filed under.
+const String trailSubtestId = 'trail-making';
 
 void main() {
   runApp(const LineConnectionGame());
@@ -38,6 +42,17 @@ class _GameScreenState extends State<GameScreen> {
   List<Offset> currentLine = [];
   bool showInstructions = true;
 
+  /// When each point of [currentLine] was touched. Kept in step with it index
+  /// for index, and separate from it so that drawing and validation — which
+  /// only ever want geometry — are untouched by the timing capture.
+  final List<DateTime> _currentTimes = [];
+
+  /// Which attempt this is, and which stroke within it. Both reset together on
+  /// restart, because "the 7th line" is a statement about one attempt; the
+  /// `retried` event in between is what separates them in the trace.
+  int _attempt = 0;
+  int _strokeIndex = 0;
+
   List<String> get checkpointLabels => AppLanguage.isEnglish
       ? const ['1', 'A', '2', 'B', '3', 'C', '4', 'D', '5', 'E']
       : const ['1', 'ก', '2', 'ข', '3', 'ค', '4', 'ง', '5', 'จ'];
@@ -47,8 +62,56 @@ class _GameScreenState extends State<GameScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _generateCheckpoints();
+      _markCheckpoints();
+      _mark(TraceEventType.instructionShown, data: {'attempt': _attempt});
       _showInstructionsDialog();
     });
+  }
+
+  void _mark(String type, {Map<String, dynamic> data = const {}}) {
+    LiveSession.current?.trace.add(trailSubtestId, type, data: data);
+  }
+
+  /// Milliseconds on the trace's own clock, or null when nothing is recording.
+  /// Sharing [TraceLog.startedAt] is what lets a point inside a stroke and an
+  /// event outside it sit on one timeline with no offset to reconcile.
+  int? _traceMs(DateTime at) {
+    final trace = LiveSession.current?.trace;
+    if (trace == null) return null;
+    return at.difference(trace.startedAt).inMilliseconds;
+  }
+
+  /// Records where the ten points landed. Emitted on every layout — first draw
+  /// and every restart — because each one is generated afresh, so a move time
+  /// from one attempt and a move time from the next are not measurements of
+  /// the same distance.
+  void _markCheckpoints() {
+    final size = MediaQuery.of(context).size;
+    _mark(TraceEventType.checkpointsPlaced, data: {
+      'attempt': _attempt,
+      'points': [
+        for (final c in checkpoints) [c.dx.round(), c.dy.round()],
+      ],
+      'labels': checkpointLabels,
+      'width': size.width.round(),
+      'height': size.height.round(),
+    });
+  }
+
+  void _markStroke() {
+    final points = <List<int>>[];
+    for (var i = 0; i < currentLine.length && i < _currentTimes.length; i++) {
+      final ms = _traceMs(_currentTimes[i]);
+      if (ms == null) return; // No live session: nothing is being recorded.
+      points.add([currentLine[i].dx.round(), currentLine[i].dy.round(), ms]);
+    }
+    if (points.isEmpty) return;
+    _mark(TraceEventType.stroke, data: {
+      'attempt': _attempt,
+      'index': _strokeIndex,
+      'points': points,
+    });
+    _strokeIndex++;
   }
 
   void _generateCheckpoints() {
@@ -117,6 +180,11 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _checkSolution() {
+    _mark(TraceEventType.submitted, data: {
+      'attempt': _attempt,
+      'strokes': _strokeIndex,
+      'linesDrawn': drawnLines.length,
+    });
     setState(() {
       isChecking = true;
     });
@@ -127,7 +195,7 @@ class _GameScreenState extends State<GameScreen> {
         gameResult = false;
         isChecking = false;
       });
-      _showResultDialog(false);
+      _showResultDialog(false, linesCross: true);
       return;
     }
 
@@ -138,7 +206,7 @@ class _GameScreenState extends State<GameScreen> {
       isChecking = false;
     });
 
-    _showResultDialog(gameResult!);
+    _showResultDialog(gameResult!, linesCross: false);
   }
 
   bool _validateCompleteSolution() {
@@ -282,12 +350,22 @@ class _GameScreenState extends State<GameScreen> {
         c.dy <= max(a.dy, b.dy));
   }
 
-  void _showResultDialog(bool passed) {
+  void _showResultDialog(bool passed, {required bool linesCross}) {
     if (passed) {
       larkScore = 1;
     } else {
       larkScore = 0;
     }
+    // Why the point was lost, from the check that already knows. Crossed lines
+    // and a wrong sequence both score 0 and are not the same failure: one is a
+    // motor/planning slip, the other is a sequencing error.
+    _mark(TraceEventType.scored, data: {
+      'score': larkScore,
+      'maxScore': 1,
+      'attempt': _attempt,
+      'linesCross': linesCross,
+      'strokes': _strokeIndex,
+    });
     // Persist at this subtest's own boundary. Without it the trail score is
     // only written when the FIRST voice subtest completes, four screens later,
     // so a crash before then loses it silently.
@@ -393,6 +471,10 @@ class _GameScreenState extends State<GameScreen> {
                 setState(() {
                   showInstructions = false;
                 });
+                // The origin for total time: the canvas is not live until the
+                // dialog closes, so time spent reading the instructions is not
+                // time spent on the task.
+                _mark(TraceEventType.started, data: {'attempt': _attempt});
                 Navigator.of(context).pop();
               },
             ),
@@ -413,14 +495,25 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _resetGame() {
+    _mark(TraceEventType.retried, data: {
+      'attempt': _attempt,
+      'strokes': _strokeIndex,
+      'linesDrawn': drawnLines.length,
+    });
     setState(() {
       drawnLines.clear();
       currentLine.clear();
+      _currentTimes.clear();
       gameResult = null;
       isDrawing = false;
+      showInstructions = true;
+      _attempt++;
+      _strokeIndex = 0;
       _generateCheckpoints();
       _showInstructionsDialog();
     });
+    _markCheckpoints();
+    _mark(TraceEventType.instructionShown, data: {'attempt': _attempt});
   }
 
   @override
@@ -485,22 +578,32 @@ class _GameScreenState extends State<GameScreen> {
               setState(() {
                 isDrawing = true;
                 currentLine = [details.localPosition];
+                _currentTimes
+                  ..clear()
+                  ..add(DateTime.now());
               });
             },
             onPanUpdate: (DragUpdateDetails details) {
               if (showInstructions) return;
               setState(() {
                 currentLine.add(details.localPosition);
+                _currentTimes.add(DateTime.now());
               });
             },
             onPanEnd: (DragEndDetails details) {
               if (showInstructions) return;
+              // Recorded before the geometry is filtered. A one-point touch
+              // draws no line and is dropped below, but it is still something
+              // the patient did — a hesitant tap on a point is exactly the
+              // kind of thing this capture exists to keep.
+              _markStroke();
               setState(() {
                 isDrawing = false;
                 if (currentLine.length > 1) {
                   drawnLines.add(List.from(currentLine));
                 }
                 currentLine = [];
+                _currentTimes.clear();
               });
             },
             child: CustomPaint(

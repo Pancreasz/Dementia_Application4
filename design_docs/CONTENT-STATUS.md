@@ -214,8 +214,34 @@ that checkable rather than merely asserted. Two sessions with the same layout
 and the same viewport had the same keyboard; two with different viewports did
 not.
 
-What is still not captured, and says so on the page: trail-making move times
-and per-subtraction timing on Serial 7s.
+**Trail making now records the drawing itself** (2026-09-08). Every finger-down
+to finger-up is one `stroke` event carrying the whole path — `[x, y, atMs]` per
+sample, at whatever rate the platform delivers them, rounded to whole logical
+pixels. One event per stroke rather than one per sample, because a sample is not
+a thing that happened to the patient; a stroke is. Around them sit `started`
+(the instruction dialog closing, which is when the clock starts), `retried`,
+`submitted`, and a `scored` event that carries **why** a lost point was lost:
+crossed lines and a wrong sequence both score 0 and are not the same failure.
+
+The measure the analysis page reads from it is the split between moving and not
+moving: the pause between lifting the finger and putting it down again is
+search-and-plan time — find the next label, decide it is next. Per-line *speed*
+is deliberately not reported, because **the ten points are placed at random on
+every attempt, on a canvas the size of the device screen**, so the distance
+between two of them differs in every session and on every phone. Anything
+proportional to distance is not comparable and is not shown as though it were;
+`checkpoints-placed` records the layout and the screen size so a later analysis
+can normalise properly, and the page carries the caveat in as many words.
+
+Two smaller decisions worth naming. A pause is compared only against **this
+patient's own** other pauses, exactly as typing is. And only the **last**
+attempt is described: an abandoned attempt stays in the trace and can be
+re-analysed, but mixing it in would report a total time that no single run of
+the task ever took. Restarts are reported without blame — the instructions
+themselves tell the patient to restart when a point lands off screen.
+
+What is still not captured, and says so on the page: per-subtraction timing on
+Serial 7s.
 
 **k. Digit Span Backward played "4 2" instead of "7 4 2". FIXED.** Reported by
 the project owner on 2026-09-07 from listening to the running app. The stimulus

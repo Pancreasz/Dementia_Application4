@@ -101,6 +101,63 @@ Backend tests, from `backend/`:
 ranks abstract abstraction answers above concrete ones — run them after
 changing the model or the accepted-term lists.
 
+## Publishing to GitHub Pages
+
+`docs/` **is** the published site — GitHub Pages serves it straight from that
+folder on `main`. It is entirely build output; nothing in it is hand-written, so
+it is safe to wipe and regenerate. Nothing rebuilds it automatically: a change
+to `lib/` is not live until you run this, which is the one way to ship a backend
+fix and silently leave the frontend that uses it a month behind.
+
+**Run this in PowerShell, not Git Bash** — see the warning below.
+
+```powershell
+flutter build web --release --base-href /Dementia_Application4/
+Remove-Item -Recurse -Force docs\*
+Copy-Item -Recurse -Force build\web\* docs\
+```
+
+Then check the base href actually landed before committing:
+
+```powershell
+Select-String -Path docs\index.html -Pattern '<base href'
+```
+
+It must print `<base href="/Dementia_Application4/">`. If it says `/` instead,
+the site loads a blank page on Pages — every asset resolves against the wrong
+root. Then:
+
+```powershell
+git add docs
+git commit -m "Rebuild web app"
+git push
+```
+
+### Why PowerShell and not Git Bash
+
+Git Bash runs under MSYS, which rewrites any argument that looks like a Unix
+absolute path into a Windows one. `--base-href /Dementia_Application4/` becomes
+`--base-href C:/Program Files/Git/Dementia_Application4/`. The build **exits 0**
+and looks like it worked; the base href is simply wrong. If you must use bash,
+prefix the command with `MSYS_NO_PATHCONV=1`.
+
+### After publishing
+
+The browser caches the old build in a service worker, so the new one does not
+appear on a normal reload. **Hard-refresh** (Ctrl+Shift+R), and on a phone, use
+a private tab to be sure.
+
+The published site talks to whatever backend you point it at. A Cloudflare quick
+tunnel gets a new hostname on every restart, so pass it in the link rather than
+rebuilding:
+
+```
+https://<user>.github.io/Dementia_Application4/?backend=https://today-tunnel.trycloudflare.com
+```
+
+**No trailing slash on that URL.** It is remembered in localStorage, so a bad
+one keeps breaking later visits that carry no `?backend=` at all.
+
 ## Backend setup
 
 The backend lives in `backend/`. Full detail — CORS, latency numbers, model
@@ -139,7 +196,7 @@ curl http://localhost:8000/health
 ```
 
 `/health` reports `loading` until the models finish loading (model load can
-take 30–100+ s the first time), then `ok`. It covers three models now —
-`clock`, `asr` and `similarity` — and reports each separately, so a single
-failed load is diagnosable from the body rather than only visible as an
-aggregate `error`.
+take 30–100+ s the first time), then `ok`. It covers four models now —
+`clock`, `asr` (Thai), `asr_en` (English) and `similarity` — and reports each
+separately, so a single failed load is diagnosable from the body rather than
+only visible as an aggregate `error`.

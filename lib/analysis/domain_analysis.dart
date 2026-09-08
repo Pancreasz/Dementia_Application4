@@ -23,12 +23,16 @@
 ///
 /// WHAT IS DELIBERATELY ABSENT
 /// ---------------------------
-/// Several measurements the improvement plan names are not captured by the app
-/// at all: trail-making move times, naming keystrokes, per-subtraction timing
-/// on Serial 7s. Those domains say so, through [ObservationTone.notCaptured],
-/// rather than showing a short section and letting it read as "nothing to
-/// report". Absence of measurement and absence of finding are different claims
-/// and this page must not merge them.
+/// Some measurements the improvement plan names are not captured by the app at
+/// all — per-subtraction timing on Serial 7s is the largest one left. Those
+/// domains say so, through [ObservationTone.notCaptured], rather than showing a
+/// short section and letting it read as "nothing to report". Absence of
+/// measurement and absence of finding are different claims and this page must
+/// not merge them.
+///
+/// The same tone covers a session recorded before a capture existed: naming
+/// keystrokes and trail-making strokes are both collected now, but a record
+/// saved last month has neither, and it says so rather than reporting zero.
 library;
 
 import '../moca/app_language.dart';
@@ -171,7 +175,7 @@ List<DomainAnalysis> analyseSession(SessionRecord record) => [
 // ---------------------------------------------------------------------------
 
 DomainAnalysis _visuospatial(SessionRecord r) {
-  final obs = <Observation>[];
+  final obs = <Observation>[..._trailObservations(r)];
 
   // The clock classifier is cumulative 0-3 (1 = contour, 2 = + numbers,
   // 3 = + hands), so the score already names the failure point with no model
@@ -197,13 +201,6 @@ DomainAnalysis _visuospatial(SessionRecord r) {
     ));
   }
 
-  obs.add(Observation(
-    t(
-        'การลากเส้น: ไม่ได้บันทึกเวลา จังหวะหยุด หรือลำดับการลากไว้ จึงบอกได้เพียงว่าผ่านหรือไม่ผ่าน',
-        'Trail making: no timing, pauses or move-by-move data are recorded, so only pass/fail is known.'),
-    tone: ObservationTone.notCaptured,
-  ));
-
   return DomainAnalysis(
     id: 'visuospatial-executive',
     name: t('การมองเห็นเชิงมิติ และการบริหารจัดการ', 'Visuospatial / Executive'),
@@ -218,6 +215,174 @@ DomainAnalysis _visuospatial(SessionRecord r) {
     observations: obs,
   );
 }
+
+/// One finger-down to finger-up, unpacked from a `stroke` event.
+class _Stroke {
+  final int startMs;
+  final int endMs;
+  final int samples;
+
+  const _Stroke(this.startMs, this.endMs, this.samples);
+
+  int get drawingMs => endMs - startMs;
+
+  /// Null for an event with no usable points — an old or hand-edited trace,
+  /// rather than something the patient did.
+  static _Stroke? from(TraceEvent e) {
+    final raw = e.data['points'];
+    if (raw is! List || raw.isEmpty) return null;
+    final times = <int>[
+      for (final p in raw)
+        if (p is List && p.length >= 3 && p[2] is num) (p[2] as num).toInt(),
+    ];
+    if (times.isEmpty) return null;
+    return _Stroke(times.first, times.last, times.length);
+  }
+}
+
+/// Trail making, from the raw stroke traces.
+///
+/// WHAT IS MEASURED AND WHAT IS NOT
+/// --------------------------------
+/// The ten points are placed at random on every attempt, on a canvas whose
+/// size is the device's. So the distance from one point to the next — and with
+/// it the time the line between them *should* take — is different in every
+/// session and on every phone. Anything proportional to distance (speed, time
+/// per line) is therefore not comparable between sessions, and none is
+/// reported as though it were.
+///
+/// What survives that is the split between moving and not moving. The pause
+/// between lifting the finger and putting it down again is search-and-plan
+/// time — find the next label, decide it is next — and it barely depends on
+/// how far apart the two points happen to be. That is the measure this reads,
+/// and, exactly as with typing in [_namingObservations], a pause is only ever
+/// compared against this patient's own other pauses.
+List<Observation> _trailObservations(SessionRecord r) {
+  final events = r.trace.forSubtest('trail-making');
+  if (events.isEmpty) {
+    return [
+      Observation(
+        t(
+            'การลากเส้น: ไม่มีข้อมูลเวลาสำหรับรอบนี้ — อาจเป็นเซสชันที่บันทึกไว้ก่อนมีการเก็บจังหวะการลากเส้น จึงบอกได้เพียงว่าผ่านหรือไม่ผ่าน',
+            'Trail making: no timing was recorded for this session — it may predate the stroke capture — so only pass/fail is known.'),
+        tone: ObservationTone.notCaptured,
+      ),
+    ];
+  }
+
+  final obs = <Observation>[];
+
+  // Only the last attempt is described. An abandoned attempt is still in the
+  // trace and can be re-analysed later; mixing it into these numbers would
+  // report a total time that no single run of the task ever took.
+  var attempt = 0;
+  for (final e in events) {
+    final a = (e.data['attempt'] as num?)?.toInt() ?? 0;
+    if (a > attempt) attempt = a;
+  }
+  final mine = events
+      .where((e) => ((e.data['attempt'] as num?)?.toInt() ?? 0) == attempt)
+      .toList();
+
+  if (attempt > 0) {
+    obs.add(Observation(t(
+        'การลากเส้น: เริ่มใหม่ $attempt ครั้ง ตัวเลขด้านล่างเป็นของรอบสุดท้าย — คำแนะนำในแบบทดสอบให้กดเริ่มใหม่เมื่อจุดหลุดออกนอกจอด้วย การเริ่มใหม่จึงไม่ได้แปลว่าทำไม่ได้เสมอไป',
+        'Trail making: restarted $attempt time${attempt == 1 ? '' : 's'}; the figures below are the final attempt. The instructions also ask for a restart when a point falls off the screen, so a restart is not by itself a sign of difficulty.')));
+  }
+
+  final strokes = <_Stroke>[
+    for (final e in mine)
+      if (e.type == TraceEventType.stroke)
+        if (_Stroke.from(e) case final s?) s,
+  ];
+
+  if (strokes.isEmpty) {
+    obs.add(Observation(
+      t('การลากเส้น: ไม่มีเส้นที่บันทึกไว้ในรอบสุดท้าย',
+          'Trail making: no strokes were recorded on the final attempt.'),
+      tone: ObservationTone.notCaptured,
+    ));
+    return obs;
+  }
+
+  // The clock starts when the instruction dialog is dismissed, not when the
+  // page opens: time spent reading the instructions is not time on task.
+  final started = mine.where((e) => e.type == TraceEventType.started);
+  final startMs = started.isEmpty ? strokes.first.startMs : started.first.atMs;
+  final endMs = strokes.last.endMs;
+  final totalMs = endMs - startMs;
+
+  var drawingMs = 0;
+  for (final s in strokes) {
+    drawingMs += s.drawingMs;
+  }
+  // Everything that is not finger-on-glass: the first pause after the start,
+  // and each lift between two lines.
+  final pausedMs = totalMs - drawingMs;
+
+  obs.add(Observation(t(
+      'การลากเส้น: ใช้เวลาทั้งหมด ${_seconds(totalMs)} วินาที ลากเส้นจริง ${_seconds(drawingMs)} วินาที และหยุดระหว่างเส้นรวม ${_seconds(pausedMs)} วินาที',
+      'Trail making: ${_seconds(totalMs)} s in total — ${_seconds(drawingMs)} s with the finger down and ${_seconds(pausedMs)} s paused between lines.')));
+
+  // Each gap between lifting the finger and putting it down again, plus the
+  // one before the very first line.
+  final gaps = <int>[strokes.first.startMs - startMs];
+  for (var i = 1; i < strokes.length; i++) {
+    gaps.add(strokes[i].startMs - strokes[i - 1].endMs);
+  }
+  final medianGap = _median(gaps);
+
+  var worstAt = 0;
+  for (var i = 1; i < gaps.length; i++) {
+    if (gaps[i] > gaps[worstAt]) worstAt = i;
+  }
+  final worst = gaps[worstAt];
+  if (medianGap != null && medianGap > 0 && worst > medianGap * 3 && worst > 2000) {
+    obs.add(Observation(worstAt == 0
+        ? t(
+            'การลากเส้น: หยุดคิดก่อนเริ่มเส้นแรก ${_seconds(worst)} วินาที เทียบกับจังหวะปกติของตนเองที่ ${_seconds(medianGap)} วินาทีระหว่างเส้น',
+            'Trail making: ${_seconds(worst)} s before the first line, against this patient\'s own typical ${_seconds(medianGap)} s between lines.')
+        : t(
+            'การลากเส้น: หยุดนานที่สุด ${_seconds(worst)} วินาที ก่อนเส้นที่ ${worstAt + 1} เทียบกับจังหวะปกติของตนเองที่ ${_seconds(medianGap)} วินาที',
+            'Trail making: the longest pause was ${_seconds(worst)} s, before line ${worstAt + 1}, against this patient\'s own typical ${_seconds(medianGap)} s between lines.')));
+  }
+
+  // Nine lines join ten points. More strokes than that means lines were drawn
+  // that the solution does not need — retraced, started and abandoned, or
+  // simply a finger put down in the wrong place.
+  const needed = 9;
+  if (strokes.length > needed) {
+    final extra = strokes.length - needed;
+    obs.add(Observation(t(
+        'การลากเส้น: ลากทั้งหมด ${strokes.length} เส้น ในขณะที่การเชื่อมจุดสิบจุดต้องใช้ $needed เส้น เกินมา $extra เส้น',
+        'Trail making: ${strokes.length} strokes drawn, where joining ten points needs $needed — $extra more than the task requires.')));
+  } else if (strokes.length < needed) {
+    obs.add(Observation(t(
+        'การลากเส้น: ลากเพียง ${strokes.length} เส้น จาก $needed เส้นที่ต้องใช้เชื่อมจุดทั้งสิบ',
+        'Trail making: only ${strokes.length} of the $needed strokes needed to join all ten points were drawn.')));
+  }
+
+  // Why the point was lost, from the check that scored it.
+  final scored = mine.where((e) => e.type == TraceEventType.scored).toList();
+  if (scored.isNotEmpty && (scored.last.data['score'] as num?)?.toInt() == 0) {
+    obs.add(Observation(scored.last.data['linesCross'] == true
+        ? t('การลากเส้น: ไม่ได้คะแนนเพราะมีเส้นตัดกัน',
+            'Trail making: the point was lost because two lines crossed.')
+        : t('การลากเส้น: ไม่ได้คะแนนเพราะลำดับการเชื่อมจุดไม่ถูกต้อง',
+            'Trail making: the point was lost because the points were not joined in the right order.')));
+  }
+
+  obs.add(Observation(
+    t(
+        'ตำแหน่งจุดทั้งสิบสุ่มใหม่ทุกครั้งและขึ้นกับขนาดหน้าจอ ระยะระหว่างจุดจึงไม่เท่ากันในแต่ละครั้ง เวลารวมข้างต้นใช้เทียบข้ามครั้งหรือข้ามเครื่องไม่ได้',
+        'The ten points are placed at random each attempt, on a canvas the size of the device screen, so the distances differ every time. The total time above cannot be compared between sessions or between devices.'),
+    tone: ObservationTone.caution,
+  ));
+
+  return obs;
+}
+
+String _seconds(int ms) => (ms / 1000).toStringAsFixed(1);
 
 DomainAnalysis _naming(SessionRecord r) => DomainAnalysis(
       id: 'naming',
