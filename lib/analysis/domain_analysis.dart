@@ -142,20 +142,11 @@ List<String> get analysisFraming => AppLanguage.isEnglish
     ? const [
         'The level shown for each area comes from the MoCA points scored in it, '
             'and from nothing else.',
-        'The detail underneath describes what happened during the test. It is '
-            'not measured against any norm, it is not a percentile, and it does '
-            'not change the level.',
-        'Some measurements are not recorded at all. Where that is so, it says '
-            'so — that is not the same as nothing being wrong.',
         'This app is a screening tool, not a diagnosis. Discuss these results '
             'with a doctor.',
       ]
     : const [
         'ระดับผลของแต่ละด้าน มาจากคะแนน MoCA ของด้านนั้นเท่านั้น ไม่ได้มาจากค่าที่วัดอื่นใด',
-        'รายละเอียดด้านล่างเป็นการบรรยายสิ่งที่เกิดขึ้นระหว่างทำแบบทดสอบ '
-            'ไม่ได้เทียบกับค่าปกติใด ไม่ใช่เปอร์เซ็นไทล์ และไม่ได้ทำให้ระดับผลเปลี่ยน',
-        'ค่าที่วัดบางอย่างยังไม่ได้ถูกบันทึกไว้เลย ในกรณีนั้นจะระบุไว้ตรง ๆ '
-            'ซึ่งไม่ได้แปลว่าไม่มีความผิดปกติ',
         'แอปนี้เป็นเครื่องมือคัดกรองเบื้องต้น ไม่ใช่การวินิจฉัยโรค ควรนำผลไปปรึกษาแพทย์',
       ];
 
@@ -1004,6 +995,35 @@ List<Observation> _fluencyObservations(SubtestOutcome outcome) {
   return obs;
 }
 
+/// The exact concrete-feature words each abstraction item is designed to
+/// fail — "they both have wheels" for train/bicycle, "they both have
+/// numbers" for watch/ruler. Named here, in both languages, so the analysis
+/// page can point at the specific pattern rather than only saying "not a
+/// category" in general.
+///
+/// This is description, not scoring: [scoreAbstractionFromSimilarities]
+/// already rejects these answers by embedding similarity, correctly, with no
+/// knowledge of this list. Nothing here can change a score — it only tells a
+/// reader *which* well-known wrong answer they are looking at.
+/// Detection words, and the ONE name the feature is reported under. The
+/// observation quotes the canonical name rather than whichever substring
+/// happened to match, so "wheel", "wheels" and "ล้อ" all read as the same
+/// finding instead of three differently-worded ones.
+typedef _ConcreteFeature = ({List<String> words, String th, String en});
+
+const _concreteFeatureWords = <String, _ConcreteFeature>{
+  'abstraction-1': (
+    words: ['wheel', 'wheels', 'ล้อ'],
+    th: 'มีล้อ',
+    en: 'wheels',
+  ),
+  'abstraction-2': (
+    words: ['number', 'numbers', 'ตัวเลข', 'เลข', 'หมายเลข'],
+    th: 'มีตัวเลข',
+    en: 'numbers',
+  ),
+};
+
 List<Observation> _abstractionObservations(SubtestOutcome outcome, String label) {
   final detail = outcome.detail;
   final reason = detail['reason'] as String?;
@@ -1051,6 +1071,26 @@ List<Observation> _abstractionObservations(SubtestOutcome outcome, String label)
     obs.add(Observation(t(
         'คำตอบไม่ใกล้กับชื่อหมวดหมู่ใดเลย ($shownCategory) — เป็นการบอกลักษณะร่วมของสิ่งของ มากกว่าการจัดหมวดหมู่ ซึ่งเป็นรูปแบบที่ข้อนี้ออกแบบมาเพื่อจับ',
         'The answer is not near any category name ($shownCategory) — property matching rather than category formation, which is the failure this item is designed to catch.')));
+
+    // Names the specific shared-physical-feature answer when it is the exact
+    // known one, on top of the generic note above — "wheels" for
+    // train/bicycle, "numbers" for watch/ruler.
+    final lowerAnswer = answer.toLowerCase();
+    final feature = _concreteFeatureWords[outcome.subtestId];
+    final matched =
+        feature != null && feature.words.any(lowerAnswer.contains);
+    if (matched) {
+      final concreteWord = t(feature.th, feature.en);
+      // Deliberately NOT ObservationTone.caution: that tone means the
+      // *measurement* is suspect (see the library comment), and there is
+      // nothing suspect here — the scorer is rejecting this answer exactly as
+      // designed. This is a true finding about the patient's answer, so it
+      // gets the same neutral tone as every other correct description on this
+      // page, just named more specifically than the generic line above it.
+      obs.add(Observation(t(
+          '$label: คำตอบนี้ตรงกับรูปแบบ "$concreteWord" ซึ่งเป็นลักษณะร่วมทางกายภาพ ไม่ใช่การจัดหมวดหมู่เชิงนามธรรม — เป็นคำตอบที่ข้อนี้ถูกออกแบบมาให้ไม่ได้คะแนน',
+          '$label: this answer matches the known "$concreteWord" pattern — a shared physical feature rather than an abstract category. It is designed to score 0.')));
+    }
   }
 
   return obs;

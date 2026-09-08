@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../moca/app_language.dart';
+import '../moca/asset_preload.dart';
 import '../moca/live_session.dart';
 import '../moca/session_record.dart';
 import '../moca/session_store.dart';
@@ -56,6 +57,14 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _checkForResumable();
+    // Fire-and-forget, from the first screen the patient ever sees, so the
+    // naming animals and the trail-making GIF are already decoded by the time
+    // their pages open — see asset_preload.dart for why this matters on web.
+    // Needs a BuildContext with a mounted asset bundle above it, hence the
+    // post-frame callback rather than calling it directly from initState.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(preloadAppImages(context));
+    });
   }
 
   Future<void> _checkForResumable() async {

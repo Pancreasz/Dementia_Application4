@@ -311,6 +311,40 @@ repetition's threshold moved from a private constant into
 states the number a score was actually measured against rather than repeating
 it in its own text where it could drift.
 
+**m. ~~The trail-making tutorial GIF was 99 MB.~~ FIXED 2026-09-08.** Reported
+by the project owner as "sometimes the images didn't load, the .gif of larksen
+also", with a request to preload them. Preloading was the right instinct and
+the wrong fix on its own: `assets/larksen_tutorial.gif` was **1920×1080, 233
+frames, 103,866,990 bytes** — 95% of the entire 109 MB asset folder, for an
+animation displayed at **150 logical pixels tall** inside an `AlertDialog`.
+That is not a flaky network; it is a screen recording shipped at full
+resolution, and preloading it would only have moved the 99 MB download to app
+startup.
+
+Re-encoded to 480×270 at every second frame — **5.0 MB, a 19× reduction**, still
+1.8× the displayed height. The animation is a finger tracing a line between
+checkpoints; what teaches the task is the motion, not the pixel count.
+
+Preloading was added too, and now costs something reasonable: `asset_preload.dart`
+warms every subtest image once, from the home page, so a fetch that used to
+happen at the moment a page opened now happens minutes earlier while nobody is
+waiting. Two things it must do, both learned the hard way:
+
+- **`precacheImage` never completes for an ANIMATED image.** Its completer
+  waits on one decoded frame; a multi-frame codec keeps producing them. The
+  first version awaited that before opening the tutorial dialog, which would
+  have meant the dialog *never opened*. Animated assets go through
+  `warmAssetBytes` (`rootBundle.load`) instead — the download was always the
+  slow part, and decoding was never the point.
+- **Bounding it with a timeout was worse than the bug.** A pending `Timer`
+  outlives the widget tree and fails every widget test that mounts a page
+  doing it — 15 of them. Splitting by asset type removes the need for a
+  timeout at all.
+
+The 99 MB blob is still in git history (`.git` is 7.4 GB). Shrinking that needs
+a history rewrite and a force-push, which is a decision for the repo owner, not
+a side effect of a bug fix.
+
 **l. ~~English voice mode is demo-quality.~~ FIXED 2026-09-08.** `language` now
 **selects the model** rather than being a decoding hint. English goes to
 `Systran/faster-distil-whisper-large-v3` (`systran-whisper/` in the repo root,

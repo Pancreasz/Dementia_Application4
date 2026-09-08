@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'package:moca_main/moca/app_language.dart';
+import 'package:moca_main/moca/asset_preload.dart';
 import 'package:moca_main/moca/event_trace.dart';
 import 'package:moca_main/moca/live_session.dart';
 import 'package:moca_main/pages/score.dart';
@@ -61,6 +62,11 @@ class _GameScreenState extends State<GameScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Bytes, not a decoded frame — see warmAssetBytes for why an animated
+      // GIF cannot go through precacheImage. Not awaited either: the home page
+      // has normally warmed this already, and the instruction dialog must open
+      // now regardless of whether this particular fetch has finished.
+      unawaited(warmAssetBytes(const ['assets/larksen_tutorial.gif']));
       _generateCheckpoints();
       _markCheckpoints();
       _mark(TraceEventType.instructionShown, data: {'attempt': _attempt});

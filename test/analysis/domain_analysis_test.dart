@@ -399,6 +399,122 @@ void main() {
       expect(texts(domain(r, 'abstraction')).join(), contains('property matching'));
     });
 
+    group('the specific "wheels" / "numbers" pattern is named', () {
+      DomainAnalysis abstraction1(String transcript) => domain(
+            record(voiceOutcomes: {
+              'abstraction-1': outcome('abstraction-1',
+                  score: 0,
+                  transcript: transcript,
+                  detail: {
+                    'best_category_similarity': 0.30,
+                    'best_stimulus_similarity': 0.20,
+                    'threshold': 0.55,
+                  }),
+            }),
+            'abstraction',
+          );
+
+      DomainAnalysis abstraction2(String transcript) => domain(
+            record(voiceOutcomes: {
+              'abstraction-2': outcome('abstraction-2',
+                  score: 0,
+                  transcript: transcript,
+                  detail: {
+                    'best_category_similarity': 0.30,
+                    'best_stimulus_similarity': 0.20,
+                    'threshold': 0.55,
+                  }),
+            }),
+            'abstraction',
+          );
+
+      test('train/bicycle: "wheels" is named', () {
+        expect(texts(abstraction1('they both have wheels')).join(),
+            contains('"wheels" pattern'));
+      });
+
+      test('watch/ruler: "numbers" is named', () {
+        expect(texts(abstraction2('they both have numbers on them')).join(),
+            contains('"numbers" pattern'));
+      });
+
+      test('a Thai answer is detected, and reported in the page language', () {
+        // Detection reads the transcript, wording follows the administration
+        // language — an English-language report of a Thai answer still says
+        // "wheels", because that is the language the reader is reading in.
+        expect(texts(abstraction1('มีล้อทั้งคู่')).join(),
+            contains('"wheels" pattern'));
+      });
+
+      test('and in Thai when the page is Thai', () {
+        AppLanguage.current = Language.th;
+        expect(texts(abstraction1('มีล้อทั้งคู่')).join(), contains('"มีล้อ"'));
+      });
+
+      test('a below-threshold answer that is not the known pattern gets no extra note',
+          () {
+        final allTexts = texts(abstraction1('they are both made of metal'));
+        expect(allTexts.any((t) => t.contains('pattern')), isFalse);
+      });
+
+      test('"numbers" for train/bicycle is not the pattern registered there',
+          () {
+        // Cross-item words must not fire: "numbers" belongs to abstraction-2.
+        final allTexts = texts(abstraction1('they both have numbers'));
+        expect(allTexts.any((t) => t.contains('pattern')), isFalse);
+      });
+
+      test('the note is not a caution — the scorer is working as designed', () {
+        final d = abstraction1('they both have wheels');
+        final wheelsNote = d.observations
+            .where((o) => o.text.contains('"wheels" pattern'))
+            .single;
+        expect(wheelsNote.tone, ObservationTone.neutral);
+      });
+
+      test('a passing answer that happens to mention wheels gets no pattern note',
+          () {
+        // "a vehicle with wheels" should pass (category-match), and passing
+        // never reaches the concrete-feature check at all.
+        final d = domain(
+          record(voiceOutcomes: {
+            'abstraction-1': outcome('abstraction-1',
+                score: 1,
+                transcript: 'a vehicle with wheels',
+                detail: {
+                  'best_term': 'vehicle',
+                  'best_category_similarity': 0.7,
+                  'best_stimulus_similarity': 0.2,
+                  'threshold': 0.55,
+                }),
+          }),
+          'abstraction',
+        );
+        expect(texts(d).any((t) => t.contains('pattern')), isFalse);
+      });
+
+      test('a stimulus echo is named as that, not as the concrete pattern', () {
+        // "wheels" also appears here, but restating the stimuli is a
+        // different, already-named failure and must not be double-labelled.
+        final d = domain(
+          record(voiceOutcomes: {
+            'abstraction-1': outcome('abstraction-1',
+                score: 0,
+                transcript: 'a train and a bicycle both have wheels',
+                detail: {
+                  'best_category_similarity': 0.30,
+                  'best_stimulus_similarity': 0.74,
+                  'threshold': 0.55,
+                }),
+          }),
+          'abstraction',
+        );
+        final allTexts = texts(d);
+        expect(allTexts, contains(contains('restating the two things')));
+        expect(allTexts.any((t) => t.contains('pattern')), isFalse);
+      });
+    });
+
     test('a correct category just under the line is a threshold artefact', () {
       final r = record(voiceOutcomes: {
         'abstraction-1': outcome('abstraction-1',
@@ -1003,17 +1119,20 @@ void main() {
       expect(analysisFraming.join(), contains('from nothing else'));
     });
 
-    test('states that the detail changes no level and has no norms', () {
-      final joined = analysisFraming.join();
-      expect(joined, contains('not a percentile'));
-      expect(joined, contains('does not change the level'));
-    });
-
     test('says the app is a screening tool, in both languages', () {
       expect(analysisFraming.join(), contains('not a diagnosis'));
       AppLanguage.current = Language.th;
       expect(analysisFraming.join(), contains('ไม่ใช่การวินิจฉัยโรค'));
-      expect(analysisFraming, hasLength(4));
+    });
+
+    test('both languages carry the same number of lines', () {
+      // Trimmed from four lines to two on 2026-09-08, deliberately. The count
+      // is not pinned to a literal any more — what must hold is that the two
+      // languages stay in step, so a line dropped from one and not the other
+      // cannot go unnoticed.
+      final en = analysisFraming.length;
+      AppLanguage.current = Language.th;
+      expect(analysisFraming, hasLength(en));
     });
   });
 }
