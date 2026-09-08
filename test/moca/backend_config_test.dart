@@ -61,6 +61,54 @@ void main() {
     });
   });
 
+  group('a URL printed on paper outlives the tunnel it names', () {
+    // A QR code was printed on 2026-09-09 with ?backend= set to a quick tunnel
+    // that has since gone. Paper cannot be reissued and GitHub Pages cannot
+    // redirect, so this app is the only thing left that can act on it.
+    const dead = 'https://basic-shopzilla-similar-daisy.trycloudflare.com';
+    const live = 'https://klein-drop-mobility-membrane.trycloudflare.com';
+
+    test('the printed QR URL resolves to the live tunnel', () {
+      expect(redirectRetiredBackendUrl(dead), live);
+    });
+
+    test('the live URL is not itself retired', () {
+      // Guards the obvious way to break this: adding a new entry whose target
+      // is an older key, which would send traffic straight back to a dead host.
+      expect(redirectRetiredBackendUrl(live), live);
+      for (final target in kRetiredBackendUrls.values) {
+        expect(kRetiredBackendUrls.containsKey(target.toLowerCase()), isFalse,
+            reason: '$target is both a replacement and a retired URL');
+      }
+    });
+
+    test('an uppercased scan still matches', () {
+      // QR encoders use alphanumeric mode for an all-uppercase payload, and
+      // some uppercase the URL to get there. Hostnames are case-insensitive.
+      expect(redirectRetiredBackendUrl(dead.toUpperCase()), live);
+    });
+
+    test('a trailing slash on the stored value still matches', () {
+      // The order in kBackendBaseUrl is normalize-then-redirect precisely so
+      // that a value remembered with a slash is not missed.
+      expect(redirectRetiredBackendUrl(normalizeBackendBaseUrl('$dead/')), live);
+    });
+
+    test('any other backend is passed through untouched', () {
+      // This is a replacement table, not an allowlist. A local run and a fresh
+      // tunnel must both survive it.
+      expect(redirectRetiredBackendUrl('http://localhost:8000'),
+          'http://localhost:8000');
+      expect(redirectRetiredBackendUrl('https://brand-new.trycloudflare.com'),
+          'https://brand-new.trycloudflare.com');
+    });
+
+    test('the resolved base URL never points at the retired tunnel', () {
+      // The end-to-end guarantee, whatever the value came from.
+      expect(kBackendBaseUrl, isNot(contains('basic-shopzilla-similar-daisy')));
+    });
+  });
+
   test('the dead Azure deployment is gone from the default', () {
     // moca-flask-container.azurewebsites.net was decommissioned. Pointing at
     // it fails the clock test and all eight voice subtests at once.

@@ -27,14 +27,59 @@ import 'backend_url_resolver.dart';
 ///
 /// No trailing slash: the paths below concatenate directly. Normalized rather
 /// than merely documented — see [normalizeBackendBaseUrl].
-final String kBackendBaseUrl = normalizeBackendBaseUrl(
-  resolveBackendBaseUrl(
-    const String.fromEnvironment(
-      'MOCA_BACKEND_BASE_URL',
-      defaultValue: 'http://localhost:8000',
+final String kBackendBaseUrl = redirectRetiredBackendUrl(
+  normalizeBackendBaseUrl(
+    resolveBackendBaseUrl(
+      const String.fromEnvironment(
+        'MOCA_BACKEND_BASE_URL',
+        defaultValue: 'http://localhost:8000',
+      ),
     ),
   ),
 );
+
+/// Tunnel hostnames that are printed on something we cannot reprint, mapped to
+/// where that traffic should go now.
+///
+/// WHY A HARDCODED MAP IS THE RIGHT SHAPE HERE
+/// -------------------------------------------
+/// A QR code was printed on 2026-09-09 encoding
+/// `…/Dementia_Application4/?backend=https://basic-shopzilla-similar-daisy.trycloudflare.com`.
+/// That tunnel is gone. The QR is on paper, GitHub Pages serves static files
+/// and cannot redirect, and the query param is read by this app — so the only
+/// place left that can act on it is this app. Whoever scans the paper gets a
+/// dead backend otherwise, and the failure looks like "the assessment is
+/// broken", not "the link is old".
+///
+/// Every entry here is a promise to keep a specific machine reachable at a
+/// specific hostname. Add one only for a link that is genuinely out of reach —
+/// a printed sheet, a sent email — never as a substitute for sharing a current
+/// link, and delete it once the paper is out of circulation.
+const Map<String, String> kRetiredBackendUrls = {
+  // Printed QR, 2026-09-09. The replacement is a quick tunnel too, so it is
+  // only stable for as long as that PC stays up; the repo owner accepted that
+  // explicitly when asking for this. If it ever does restart, this line is the
+  // one to edit, and the site has to be rebuilt and redeployed for the change
+  // to reach anyone.
+  'https://basic-shopzilla-similar-daisy.trycloudflare.com':
+      'https://klein-drop-mobility-membrane.trycloudflare.com',
+};
+
+/// Swaps a retired backend URL for its live replacement.
+///
+/// Runs on the *normalized* value, and on the value from localStorage as well
+/// as the one from `?backend=` — both matter. Someone who scanned the QR once
+/// already has the dead hostname persisted, so reopening the plain site later
+/// carries no query param to fix and would otherwise stay broken forever.
+///
+/// Matched case-insensitively: QR encoders fall back to alphanumeric mode for
+/// payloads that are entirely uppercase, and some tools uppercase a URL to get
+/// there. Hostnames are case-insensitive anyway, so this costs nothing.
+///
+/// Anything not in the map is returned untouched — this must never become a
+/// filter on where the app is allowed to point.
+String redirectRetiredBackendUrl(String url) =>
+    kRetiredBackendUrls[url.toLowerCase()] ?? url;
 
 /// Strips trailing slashes and surrounding whitespace from a base URL.
 ///
