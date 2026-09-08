@@ -158,6 +158,22 @@ https://<user>.github.io/Dementia_Application4/?backend=https://today-tunnel.try
 **No trailing slash on that URL.** It is remembered in localStorage, so a bad
 one keeps breaking later visits that carry no `?backend=` at all.
 
+### When a shared link outlives its tunnel
+
+A link that has left your hands — printed on a QR code, sent in an email —
+cannot be corrected at the source, and GitHub Pages serves static files so it
+cannot redirect. `kRetiredBackendUrls` in
+[`lib/moca/backend_config.dart`](lib/moca/backend_config.dart) maps a retired
+hostname to the current one; the app substitutes it on load, for the remembered
+localStorage value as well as for `?backend=`. **A QR code printed 2026-09-09
+depends on this.** If that PC restarts and the tunnel changes, edit the map and
+republish `docs/` — the printed sheet keeps working, but only because of that
+line.
+
+Every entry is a standing promise to keep one machine reachable. Add one only
+for a link genuinely out of reach, never in place of sharing a current link, and
+delete it once the paper is out of circulation.
+
 ## Backend setup
 
 The backend lives in `backend/`. Full detail — CORS, latency numbers, model
