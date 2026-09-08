@@ -22,6 +22,8 @@ import torch.nn as nn
 from PIL import Image
 from torchvision import models, transforms
 
+import weights_manifest
+
 NUM_CLASSES = 4  # clock scores 0..3
 
 
@@ -117,7 +119,17 @@ class ClockModel:
         except BaseException as exc:  # noqa: BLE001 - report via /health, not a crash
             with self._lock:
                 self._state = LoadState.ERROR
+                # torch's own message for a half-written weights file is
+                # "PytorchStreamReader failed reading zip archive: failed
+                # finding central directory ... your checkpoint file is
+                # corrupted", which reads as "the model is broken" and sent
+                # someone hunting the wrong thing on 2026-09-09. The file was
+                # simply a partial `git cat-file` restore. Say that instead,
+                # when the bytes on disk prove it.
+                hint = weights_manifest.load_failure_hint(self._weights_path)
                 self._detail = f"clock model load failed: {exc!r}"
+                if hint:
+                    self._detail = f"clock model load failed - {hint}"
 
     def predict(self, image_bytes: bytes) -> int:
         """Return a clock score in 0..3 for a PNG/JPEG byte string.

@@ -34,10 +34,17 @@ _WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), "moca_densenet.pth")
 # monkeypatch these module globals with fakes; routes read them via the
 # accessors below so a patched global takes effect.
 clock_model = ClockModel(_WEIGHTS_PATH)
-asr_model = AsrModel(label="asr-th")
+asr_model = AsrModel(
+    label="asr-th",
+    download_hint="python scripts/convert_model.py  (from backend/)",
+)
 asr_model_en = AsrModel(
     model_dir=DEFAULT_MODEL_DIR_EN,
     label="asr-en",
+    download_hint=(
+        "huggingface-cli download Systran/faster-distil-whisper-large-v3 "
+        "--local-dir ../systran-whisper"
+    ),
 )
 similarity_model = SimilarityModel()
 

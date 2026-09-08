@@ -19,6 +19,13 @@
 # Everything the backend actually loads lives under backend/models/, which is
 # ignored by backend/.gitignore and rebuilt by scripts/convert_model.py.
 /systran-whisper/
+# ...and the archives of them. The model *directories* above were ignored but
+# `systran-whisper.zip` (1.4 GB) and `backend/models.zip` (4.1 GB) were not —
+# both appear when the checkpoints are packed up to hand to someone rather than
+# re-downloaded, which is exactly when a `git add -A` is likeliest. A 99 MB
+# blob is already unremovable from this history without a force-push; these are
+# forty times larger.
+*.zip
 .buildlog/
 .history
 .svn/

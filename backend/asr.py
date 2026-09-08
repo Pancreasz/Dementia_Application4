@@ -223,11 +223,18 @@ class AsrModel:
         repetition_penalty: float = DEFAULT_REPETITION_PENALTY,
         label: str = "asr",
         load_lock: Optional[threading.Lock] = None,
+        download_hint: str = "",
     ):
         # Names this instance in /health and in load-failure details. With two
         # models running, "model load failed" without a label sends whoever
         # reads it to the wrong directory.
         self.label = label
+        # How to obtain this model, quoted verbatim when the directory is
+        # absent. Neither checkpoint is committed (both are gigabytes), so on a
+        # fresh clone "no model directory at ..." is the *expected* first
+        # result, not a fault — and the person reading it needs the command,
+        # not a naming of the gap. Reported from a clone on 2026-09-09.
+        self._download_hint = download_hint
         self._load_lock = load_lock or _LOAD_LOCK
         self._model_dir = model_dir
         self._device = device
@@ -270,9 +277,10 @@ class AsrModel:
             # With two models configured, "which directory?" is the first
             # question anyone reading /health will have.
             if not os.path.isdir(self._model_dir):
-                raise FileNotFoundError(
-                    f"no model directory at {self._model_dir}"
-                )
+                message = f"no model directory at {self._model_dir}"
+                if self._download_hint:
+                    message = f"{message} - get it with: {self._download_hint}"
+                raise FileNotFoundError(message)
 
             # One model converts at a time. See _LOAD_LOCK — this is about RAM,
             # not about shared state.

@@ -345,6 +345,44 @@ The 99 MB blob is still in git history (`.git` is 7.4 GB). Shrinking that needs
 a history rewrite and a force-push, which is a decision for the repo owner, not
 a side effect of a bug fix.
 
+**n. ~~A fresh clone's `/health` blamed the model for a half-written file.~~
+FIXED 2026-09-09.** Someone cloned the repo and got
+
+> `clock model load failed: RuntimeError('PytorchStreamReader failed reading zip
+> archive: failed finding central directory … there is a high likelihood that
+> your checkpoint file is corrupted.')`
+
+The checkpoint was not corrupted. `moca_densenet.pth` is gitignored and is
+written by `scripts/restore_weights.py`, which streamed `git cat-file` straight
+into the destination — so it **truncated the real file before knowing whether
+git would produce anything**, and any interruption left a partial file sitting
+under the right name. Reproduced exactly: an empty file raises `EOFError`, a
+non-model raises `UnpicklingError`, and only a *truncated* one produces the
+miniz message, which is how we know what state their disk was in.
+
+Two fixes, because the two failures are separable:
+
+- The script now stages a `.part` file and verifies **size and sha256** before
+  renaming, so a failed restore leaves the destination as it was — absent,
+  which is honestly reportable. The hash matters beyond the size: running the
+  `git cat-file` by hand in PowerShell re-encodes the binary stream as text,
+  and a size check alone would not catch every version of that.
+- `/health` now says *"this is not a model file, it is an incomplete restore
+  (100000 bytes on disk, expected 28440806)"* and names the script. The raw
+  exception is still reported for any failure the bytes on disk don't explain,
+  and a custom checkpoint (`MOCA_CLOCK_WEIGHTS` elsewhere) gets no hint at all
+  — telling someone to re-run a restore script for a model that isn't ours
+  would send them to the wrong place.
+
+`weights_manifest.py` holds the expected size, hash and wording for both
+callers, so the script cannot drift from what the loader checks.
+
+The same clone also showed `asr_en: no model directory at …\systran-whisper`.
+That one is **correct and expected** — neither ASR checkpoint is committed, and
+a clone should not quietly start a multi-gigabyte download. The message now
+quotes the `huggingface-cli` command that fetches it, so `/health` alone is
+enough to finish a setup.
+
 **l. ~~English voice mode is demo-quality.~~ FIXED 2026-09-08.** `language` now
 **selects the model** rather than being a decoding hint. English goes to
 `Systran/faster-distil-whisper-large-v3` (`systran-whisper/` in the repo root,

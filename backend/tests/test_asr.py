@@ -65,6 +65,34 @@ def test_load_failure_transitions_to_error_with_detail(monkeypatch):
     assert "ct2 missing" in m.detail
 
 
+def test_absent_model_dir_reports_how_to_get_the_model(monkeypatch, tmp_path):
+    # Neither checkpoint is committed, so on a fresh clone this is the first
+    # thing /health says. Reported from a clone on 2026-09-09, where naming the
+    # missing path was all it did — the reader still had to go find the
+    # download command in the README.
+    _install_fake_faster_whisper(monkeypatch, lambda *a, **k: object())
+    m = AsrModel(
+        model_dir=str(tmp_path / "nothing-here"),
+        label="asr-en",
+        download_hint="huggingface-cli download Systran/faster-distil-whisper-large-v3",
+    )
+    m._load()
+
+    assert m.state == LoadState.ERROR
+    assert "nothing-here" in m.detail  # still says *which* directory
+    assert "huggingface-cli download" in m.detail
+
+
+def test_absent_model_dir_without_a_hint_still_names_the_path(monkeypatch, tmp_path):
+    _install_fake_faster_whisper(monkeypatch, lambda *a, **k: object())
+    m = AsrModel(model_dir=str(tmp_path / "nothing-here"))
+    m._load()
+
+    assert m.state == LoadState.ERROR
+    assert "no model directory at" in m.detail
+    assert "get it with" not in m.detail
+
+
 # --------------------------------------------------------------------------
 # transcribe keeps segments
 # --------------------------------------------------------------------------

@@ -45,8 +45,22 @@ python -m venv ../.venv
 ../.venv/Scripts/python.exe scripts/restore_weights.py
 ```
 
-That is enough to run `/upload` and the full test suite. `/transcribe` needs the
-ASR model, which is a separate, heavier step (≈5.8 GB download → ≈3.1 GB
+That is enough to run `/upload` and the full test suite.
+
+> **If `/health` says the clock model failed to load, read the detail, not the
+> exception.** `moca_densenet.pth` is gitignored, so the only thing that puts it
+> on disk is the script above. Since 2026-09-09 a run that dies partway leaves
+> the destination untouched (it stages a `.part` file and verifies size *and*
+> sha256 before renaming), and `/health` names a short file as an *incomplete
+> restore* rather than reporting torch's `PytorchStreamReader … internal miniz
+> error`, which reads as a corrupt model and is not. Re-running the script fixes
+> it. Two ways to get a bad file anyway: a **shallow clone**, where the old
+> commit holding the blob was never fetched (`git fetch --unshallow`), and
+> running the `git cat-file` by hand in **PowerShell**, where `>` re-encodes the
+> binary stream as text — that one produces a file of the wrong size, which is
+> why the check is a hash and not just a byte count.
+
+`/transcribe` needs the ASR model, which is a separate, heavier step (≈5.8 GB download → ≈3.1 GB
 float16):
 
 ```bash
@@ -78,7 +92,12 @@ produced — so if the English model is missing, English `/transcribe` answers
 503 and the subtest records as *not administered* rather than being scored on
 hallucinated text.
 
-`/health` lists both as `asr` (Thai) and `asr_en`.
+`/health` lists both as `asr` (Thai) and `asr_en`. **On a fresh clone both are
+expected to report `no model directory at …` until you run the two steps above**
+— neither checkpoint is committed, and a gigabytes-sized download is not
+something a clone should do behind your back. The message quotes the command
+that fetches the missing one, so `/health` is enough on its own to tell you what
+is left to do.
 
 > **Memory.** Two large-v3-class models are resident at once. They load one at
 > a time, but the steady state is roughly 2.5 GB for the pair plus ~0.5 GB for

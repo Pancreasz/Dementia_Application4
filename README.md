@@ -172,7 +172,11 @@ python -m venv ../.venv
 ```
 
 That much is enough to run `/upload` (clock scoring) and the backend's own
-test suite. `/similarity` (abstraction scoring) needs a multilingual
+test suite. **`GET /health` is the check** — it reports each of the four models
+separately, and on a fresh clone the two ASR entries are expected to say
+`no model directory at …` until their downloads are done. Every model's failure
+detail quotes the command that fixes it; if the clock model reports an
+*incomplete restore*, re-run `scripts/restore_weights.py`. `/similarity` (abstraction scoring) needs a multilingual
 sentence-transformer, which `pip install -r requirements.txt` brings in and
 which downloads itself (~470 MB) on first startup — no separate step.
 
